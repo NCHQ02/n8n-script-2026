@@ -42,26 +42,29 @@ show_menu() {
   echo -e " ${GREEN}Xem hướng dẫn:${NC} ${CYAN}https://docs.google.com/document/d/1EmJObjeM-77QJcekn1IBm8JEZyxi5_HP49VVsEr6Dwk/edit?usp=sharing${NC}"
   echo "------------------------------------------------------------------------------------"
   
-  # Nhóm Cài đặt, Cập nhật & Tên miền
-  echo -e " ${YELLOW}[ CƠ BẢN & MỞ RỘNG ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "1)" "Cài đặt N8N" "2)" "Thay đổi tên miền truy cập"
-  printf " %-3s %-35s %-3s %s\n" "3)" "Nâng cấp phiên bản N8N" "12)" "Cấu hình Môi trường (Biến ENV)"
+  # Nhóm 1: Cài đặt và Cơ bản
+  echo -e " ${YELLOW}[ 1. CÀI ĐẶT & CƠ BẢN ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "1)" "Cài đặt N8N mới" "2)" "Thay đổi Tên miền truy cập"
+  printf " %-3s %-35s %-3s %s\n" "3)" "Nâng cấp phiên bản N8N" "4)" "Cấu hình Môi trường (Timezone,...)"
   
-  # Nhóm Tài khoản & Bảo mật
-  echo -e "\n ${YELLOW}[ TÀI KHOẢN & BẢO MẬT ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "4)" "Tắt/Bật xác thực 2 bước (2FA)" "5)" "Đặt lại mật khẩu quản trị viên"
+  # Nhóm 2: Tài khoản & Bảo mật
+  echo -e "\n ${YELLOW}[ 2. TÀI KHOẢN & BẢO MẬT ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "5)" "Tắt/Bật xác thực 2 bước (2FA/MFA)" "6)" "Đặt lại mật khẩu Quản trị viên"
   
-  # Nhóm Dữ liệu
-  echo -e "\n ${YELLOW}[ SAO LƯU & DỮ LIỆU ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "6)" "Export (Workflow & Credential)" "7)" "Import (Workflow & Credential)"
-  printf " %-3s %-35s %-3s %s\n" "13)" "Backup máy chủ N8N (.tar.gz)" "14)" "Restore hệ thống từ Backup"
+  # Nhóm 3: Dữ liệu (Backup & Restore)
+  echo -e "\n ${YELLOW}[ 3. DỮ LIỆU & SAO LƯU ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "7)" "Export (Tải Workflows & Credential)" "8)" "Import (Phục hồi Workflows/Creds)"
+  printf " %-3s %-35s %-3s %s\n" "9)" "Siêu Backup (Toàn bộ Server -> Zip)" "10)" "Khôi phục toàn bộ hệ thống từ Zip"
 
-  # Nhóm Hệ thống 
-  echo -e "\n ${YELLOW}[ HỆ THỐNG & MONITORING ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "8)" "Xem Thông tin kết nối Redis" "15)" "Xem Thông tin kết nối Database"
-  printf " %-3s %-35s %-3s %s\n" "9)" "Xem Trạng thái Node (CPU/RAM)" "10)" "Khởi động lại (Restart N8N)"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "11)" "Xem Logs N8N (Tail Logs)" "16)" "Dọn rác (Docker Prune)"
-  printf " %-3s %-35s\n" "99)" "Xóa sạch Data N8N và Cài lại"
+  # Nhóm 4: Hệ thống & Logs
+  echo -e "\n ${YELLOW}[ 4. QUẢN TRỊ HỆ THỐNG ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "11)" "Xem Thông tin tài khoản Redis" "12)" "Xem Thông tin tài khoản Database"
+  printf " %-3s %-35s %-3s %s\n" "13)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "14)" "Khởi động lại (Restart N8N Container)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "15)" "Xem Error Logs N8N (Terminal)" "16)" "Dọn rác máy chủ (Docker Prune)"
+
+  # Nhóm Nguy hiểm
+  echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
+  printf " %-3s %-35s\n" "99)" "Xóa sạch Dữ liệu N8N và Cài đặt lại"
 
   echo "------------------------------------------------------------------------------------"
   read -p "$(echo -e ${CYAN}'Nhập lựa chọn của bạn (0-99) [ 0 = Thoát! ]: '${NC})" choice
@@ -74,18 +77,18 @@ while true; do
     1) install ;;
     2) change_domain ;;
     3) upgrade_n8n_version ;;
-    4) disable_mfa ;;
-    5) reset_user_login ;;
-    6) export_all_data ;;
-    7) import_data ;;
-    8) get_redis_info ;;
-    9) show_status ;;
-    10) restart_services ;;
-    11) view_logs ;;
-    12) configure_environment ;;
-    13) backup_server ;;
-    14) restore_server ;;
-    15) get_database_info ;;
+    4) configure_environment ;;
+    5) disable_mfa ;;
+    6) reset_user_login ;;
+    7) export_all_data ;;
+    8) import_data ;;
+    9) backup_server ;;
+    10) restore_server ;;
+    11) get_redis_info ;;
+    12) get_database_info ;;
+    13) show_status ;;
+    14) restart_services ;;
+    15) view_logs ;;
     16) docker_prune ;;
     99) reinstall_n8n ;;
     0)

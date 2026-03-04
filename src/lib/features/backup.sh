@@ -15,10 +15,13 @@ backup_server() {
   mkdir -p "$BACKUP_DIR"
   
   local timestamp=$(date +%Y%m%d_%H%M%S)
-  local backup_file="${BACKUP_DIR}/n8n_backup_${timestamp}.tar.gz"
+  local current_backup_dir="${BACKUP_DIR}/n8n_backup_${timestamp}"
   
-  echo -e "${YELLOW}[*] Hệ thống sẽ tạo một bản nén thư mục N8N (kèm Data) tại:${NC}"
-  echo "- File: ${backup_file}"
+  echo -e "${YELLOW}[*] Hệ thống sẽ tạo một bản nén đầy đủ bao gồm:${NC}"
+  echo "- Cấu hình Docker & Môi trường (.env)"
+  echo "- Dữ liệu Workflows & Credentials"
+  echo "- Dữ liệu Database PostgreSQL"
+  echo "- Thư mục cấu hình N8N"
   echo ""
   
   read -p "Bạn có muốn tiếp tục Backup không? (y/n): " confirm
@@ -27,14 +30,49 @@ backup_server() {
     sleep 1
     return 0
   fi
+
+  sudo mkdir -p "${current_backup_dir}"
   
-  # Chạy lệnh
-  # Exclude các thư mục backups (.tar.gz) hoặc logs khổng lồ (nếu có) để tránh lồng nhau
-  run_silent_command "Đang tạo bản ghi Backup (tùy dung lượng sẽ tốn vài phút)" "cd / && tar --exclude='${BACKUP_DIR}' -czf ${backup_file} ${N8N_DIR:1}" false
+  # 1. Export Credentials & Workflows (thông qua container n8n)
+  start_spinner "Đang trích xuất Workflows & Credentials..."
+  local container_temp_export_dir="/home/node/.n8n/temp_export_$$"
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_export_dir}"
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:credentials --all --output="${container_temp_export_dir}/credentials.json" &>/dev/null
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:workflow --all --output="${container_temp_export_dir}/workflows.json" &>/dev/null
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/credentials.json" "${current_backup_dir}/credentials.json" &>/dev/null
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/workflows.json" "${current_backup_dir}/workflows.json" &>/dev/null
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_export_dir}" &>/dev/null
+  stop_spinner
+
+  # 2. Export Database PostgreSQL
+  start_spinner "Đang trích xuất Cơ sở dữ liệu PostgreSQL..."
+  local db_user=$(grep "^POSTGRES_USER=" "${ENV_FILE}" | cut -d'=' -f2)
+  local db_name=$(grep "^POSTGRES_DB=" "${ENV_FILE}" | cut -d'=' -f2)
+  if [[ -n "$db_user" && -n "$db_name" ]]; then
+      sudo docker exec n8n_postgres pg_dump -U "$db_user" -d "$db_name" -F c -f "/tmp/database.dump" &>/dev/null
+      sudo docker cp "n8n_postgres:/tmp/database.dump" "${current_backup_dir}/database.dump" &>/dev/null
+      sudo docker exec n8n_postgres rm -f "/tmp/database.dump" &>/dev/null
+  fi
+  stop_spinner
+
+  # 3. Copy các file cấu hình quan trọng
+  start_spinner "Đang sao lưu cấu hình môi trường..."
+  sudo cp "${N8N_DIR}/.env" "${current_backup_dir}/" &>/dev/null
+  sudo cp "${N8N_DIR}/docker-compose.yml" "${current_backup_dir}/" &>/dev/null
+  stop_spinner
+  
+  # 4. Gom tất cả lại thành 1 file .tar.gz duy nhất
+  local final_backup_file="${BACKUP_DIR}/n8n_full_backup_${timestamp}.tar.gz"
+  run_silent_command "Đang nén toàn bộ dữ liệu thành 1 file (tùy dung lượng sẽ tốn vài phút)" "cd ${BACKUP_DIR} && tar -czf ${final_backup_file} $(basename ${current_backup_dir})" false
   
   if [ $? -eq 0 ]; then
-    echo -e "${GREEN}[+] Đã sao lưu thành công vào file: ${backup_file}!${NC}"
+    # Xoá thư mục tạm sau khi nén xong
+    sudo rm -rf "${current_backup_dir}"
+    echo -e "${GREEN}[+] Đã sao lưu TOÀN BỘ hệ thống thành công!${NC}"
+    echo -e "${YELLOW}File lưu tại: ${final_backup_file}${NC}"
     echo -e "${YELLOW}[*] Bạn nên tải tệp tin này về máy cá nhân hoặc Cloud khác để lưu trữ an toàn.${NC}"
+  else
+    echo -e "${RED}[!] Quá trình nén file thất bại.${NC}"
   fi
   
   echo ""
@@ -97,22 +135,74 @@ restore_server() {
     return 0
   fi
   
-  # Bước 1: Dừng các service N8N
-  run_silent_command "Đang dừng hệ thống N8N" "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} down" false
-  
-  # Bước 2: Dọn dẹp thư mục cũ (Ngoại trừ thư mục backups)
-  run_silent_command "Đang dọn dẹp thư mục ${N8N_DIR} hiện tại" "find ${N8N_DIR} -mindepth 1 -maxdepth 1 ! -name 'backups' -exec rm -rf {} +" false
-  
-  # Bước 3: Giải nén
-  run_silent_command "Đang giải nén file sao lưu / Phục hồi dữ liệu..." "tar -xzf ${selected_file} -C /" false
-  
-  # Bước 4: Khởi động lại
-  run_silent_command "Đang gọi system khởi động lại N8N..." "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} up -d" false
-  
-  if [ $? -eq 0 ]; then
-    echo -e "\n${GREEN}[+] Chúc mừng! Quá trình phục hồi (Restore) đã thành công!${NC}"
-    echo -e "${YELLOW}[*] Hãy chờ 1-2 phút cho các Container load Database và bạn có thể truy cập lại N8N.${NC}"
+  # Tạo thư mục giải nén tạm thời
+  local temp_extract_dir="/tmp/n8n_restore_$$"
+  sudo mkdir -p "${temp_extract_dir}"
+  run_silent_command "Đang giải nén file backup..." "tar -xzf ${selected_file} -C ${temp_extract_dir}" false
+
+  # Tên folder bên trong file nén (ví dụ n8n_backup_2026...)
+  local extracted_folder
+  extracted_folder=$(ls -1 "${temp_extract_dir}" | head -n 1)
+  local extract_source="${temp_extract_dir}/${extracted_folder}"
+
+  # Khôi phục file cấu hình môi trường (.env, docker-compose.yml)
+  start_spinner "Đang khôi phục file cấu hình..."
+  if [ -f "${extract_source}/.env" ]; then
+    sudo cp "${extract_source}/.env" "${N8N_DIR}/"
   fi
+  if [ -f "${extract_source}/docker-compose.yml" ]; then
+    sudo cp "${extract_source}/docker-compose.yml" "${N8N_DIR}/"
+  fi
+  stop_spinner
+
+  # Đảm bảo các hệ thống đang chạy
+  run_silent_command "Đảm bảo database đang hoạt động để restore..." "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} up -d postgres" false
+  
+  # Đợi Postgres sẵn sàng
+  sleep 5
+  
+  # 2. Phục hồi Database PostgreSQL
+  if [ -f "${extract_source}/database.dump" ]; then
+    start_spinner "Đang khôi phục Cơ sở dữ liệu..."
+    local db_user=$(grep "^POSTGRES_USER=" "${N8N_DIR}/.env" | cut -d'=' -f2)
+    local db_name=$(grep "^POSTGRES_DB=" "${N8N_DIR}/.env" | cut -d'=' -f2)
+    sudo docker cp "${extract_source}/database.dump" n8n_postgres:/tmp/database.dump
+    sudo docker exec n8n_postgres pg_restore -U "$db_user" -d "$db_name" --clean --if-exists -1 "/tmp/database.dump" &>/dev/null
+    sudo docker exec n8n_postgres rm -f "/tmp/database.dump" &>/dev/null
+    stop_spinner
+  fi
+
+  # Bước khởi động lại toàn bộ N8N sau khi nạp cấu hình và database
+  run_silent_command "Đang khởi động N8N platform..." "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} up -d n8n" false
+  
+  # Chờ N8N load hoàn chỉnh
+  start_spinner "Đang chờ N8N khởi động để nạp Credentials và Workflows..."
+  sleep 15
+  stop_spinner
+
+  # 3. Phục hồi Credentials & Workflows (thông qua container n8n)
+  start_spinner "Đang nạp lại Workflows và Credentials..."
+  local container_temp_import_dir="/home/node/.n8n/temp_import_$$"
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_import_dir}"
+  
+  if [ -f "${extract_source}/credentials.json" ]; then
+    sudo docker cp "${extract_source}/credentials.json" "${N8N_CONTAINER_NAME}:${container_temp_import_dir}/credentials.json"
+    sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n import:credentials --input="${container_temp_import_dir}/credentials.json" &>/dev/null
+  fi
+  
+  if [ -f "${extract_source}/workflows.json" ]; then
+    sudo docker cp "${extract_source}/workflows.json" "${N8N_CONTAINER_NAME}:${container_temp_import_dir}/workflows.json"
+    sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n import:workflow --input="${container_temp_import_dir}/workflows.json" &>/dev/null
+  fi
+  
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_import_dir}" &>/dev/null
+  stop_spinner
+
+  # Dọn dẹp thư mục tạm
+  sudo rm -rf "${temp_extract_dir}"
+  
+  echo -e "\n${GREEN}[+] Chúc mừng! Quá trình phục hồi (Restore) TOÀN DIỆN đã thành công!${NC}"
+  echo -e "${YELLOW}[*] N8N đã sẵn sàng với bộ dữ liệu Database, Workflows và Credentials cũ.${NC}"
   
   echo ""
   read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
