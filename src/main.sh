@@ -41,13 +41,29 @@ show_menu() {
   echo -e " ${YELLOW}Phím tắt: Nhấn Ctrl + C hoặc nhập 0 để thoát${NC}"
   echo -e " ${GREEN}Xem hướng dẫn:${NC} ${CYAN}https://docs.google.com/document/d/1EmJObjeM-77QJcekn1IBm8JEZyxi5_HP49VVsEr6Dwk/edit?usp=sharing${NC}"
   echo "------------------------------------------------------------------------------------"
-  printf " %-3s %-35s %-3s ${YELLOW}%s${NC}\n" "1)" "Cài đặt N8N" "6)" "Export tất cả (workflow & credentials)"
-  printf " %-3s %-35s %-3s %s\n" "2)" "Thay đổi tên miền" "7)" "Import workflow & credentials"
-  printf " %-3s %-35s %-3s ${GREEN}%s${NC}\n" "3)" "Nâng cấp phiên bản N8N" "8)" "Lấy thông tin Redis"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "4)" "Tắt xác thực 2 bước (2FA/MFA)" "9)" "Xóa N8N và cài đặt lại"
-  printf " %-3s %-35s\n" "5)" "Đặt lại thông tin đăng nhập"
+  
+  # Nhóm Cài đặt, Cập nhật & Tên miền
+  echo -e " ${YELLOW}[ CƠ BẢN & MỞ RỘNG ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "1)" "Cài đặt N8N" "2)" "Thay đổi tên miền truy cập"
+  printf " %-3s %-35s %-3s %s\n" "3)" "Nâng cấp phiên bản N8N" "12)" "Cấu hình Môi trường (Biến ENV)"
+  
+  # Nhóm Tài khoản & Bảo mật
+  echo -e "\n ${YELLOW}[ TÀI KHOẢN & BẢO MẬT ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "4)" "Tắt/Bật xác thực 2 bước (2FA)" "5)" "Đặt lại mật khẩu quản trị viên"
+  
+  # Nhóm Dữ liệu
+  echo -e "\n ${YELLOW}[ SAO LƯU & DỮ LIỆU ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "6)" "Export (Workflow & Credential)" "7)" "Import (Workflow & Credential)"
+  printf " %-3s %-35s %-3s %s\n" "13)" "Backup máy chủ N8N (.tar.gz)" "14)" "Restore hệ thống từ Backup"
+
+  # Nhóm Hệ thống 
+  echo -e "\n ${YELLOW}[ HỆ THỐNG & MONITORING ]${NC}"
+  printf " %-3s %-35s %-3s %s\n" "8)" "Xem Thông tin kết nối Redis" "9)" "Xem Trạng thái Node (CPU/RAM)"
+  printf " %-3s %-35s %-3s %s\n" "10)" "Khởi động lại (Restart N8N)" "11)" "Xem Logs N8N (Tail Logs)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "15)" "Dọn rác (Docker Prune)" "99)" "Xóa sạch Data N8N và Cài lại"
+
   echo "------------------------------------------------------------------------------------"
-  read -p "$(echo -e ${CYAN}'Nhập lựa chọn của bạn (1-9) [ 0 = Thoát! ]: '${NC})" choice
+  read -p "$(echo -e ${CYAN}'Nhập lựa chọn của bạn (0-99) [ 0 = Thoát! ]: '${NC})" choice
   echo ""
 }
 
@@ -62,13 +78,21 @@ while true; do
     6) export_all_data ;;
     7) import_data ;;
     8) get_redis_info ;;
-    9) reinstall_n8n ;;
-    *)
-      if [[ "$choice" == "0" ]]; then
+    9) show_status ;;
+    10) restart_services ;;
+    11) view_logs ;;
+    12) configure_environment ;;
+    13) backup_server ;;
+    14) restore_server ;;
+    15) docker_prune ;;
+    99) reinstall_n8n ;;
+    0)
         echo "Tạm Biệt nhé!  - BanhMiSaiGon mãi iu Bạn!"
         echo "Design By Nguyễn Cao Hoàng Quý!"
         exit 0
-      elif ! [[ "$choice" =~ ^[1-9]$ ]]; then
+        ;;
+    *)
+      if ! [[ "$choice" =~ ^[1-9][0-9]*$ ]]; then
         echo -e "${RED}[!] Lựa chọn không đúng. Vui lòng chọn lại.${NC}"
       fi
       sleep 1
