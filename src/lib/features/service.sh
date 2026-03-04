@@ -18,7 +18,7 @@ show_status() {
   
   # Hiển thị mức sử dụng tài nguyên nhanh
   echo -e "\n${YELLOW}Tài nguyên sử dụng (CPU/RAM):${NC}"
-  docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" | grep -E "Name|${N8N_CONTAINER_NAME}|redis" || echo "Không có container nào đang chạy."
+  docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" | grep -E "Name|${N8N_CONTAINER_NAME}|n8n_redis|n8n_postgres|redis|postgres" || echo "Không có container nào đang chạy."
   
   echo ""
   read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
