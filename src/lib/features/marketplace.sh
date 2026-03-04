@@ -11,11 +11,7 @@ open_marketplace() {
     # Định nghĩa danh sách các mẫu (id|tên|link json)
     # Tương lai có thể cào tự động bằng API Github, nhưng fix cứng mảng sẽ an toàn và nhanh hơn cho Bash Script
     local templates=(
-      "1|Luồng Telegram Bot gửi tin nhắn mặc định|telegram-bot.json"
-      "2|Luồng báo cáo Doanh Thu qua Google Sheet|google-sheet-report.json"
-      "3|Luồng Đồng bộ Lead từ Facebook Ads về CRM|fb-lead-crm.json"
-      "4|Luồng Auto-reply Email bằng OpenAI|email-openai-reply.json"
-      "5|Luồng import workflow credential|import-workflow-credential.json"
+      "1|Luồng import workflow credential|import-workflow-credential.json"
     )
 
     # Hiển thị Menu
