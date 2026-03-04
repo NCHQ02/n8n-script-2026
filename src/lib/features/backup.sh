@@ -31,6 +31,17 @@ backup_server() {
     return 0
   fi
 
+  local temp_nginx_include_file_path_for_trap=""
+  trap 'RC=$?; stop_spinner; \
+      echo -e "\n${YELLOW}Huỷ bỏ/Lỗi trong quá trình Backup (Mã lỗi: $RC). Đang dọn dẹp...${NC}"; \
+      if [ -n "${temp_nginx_include_file_path_for_trap}" ] && [ -f "${temp_nginx_include_file_path_for_trap}" ]; then \
+          sudo rm -f "${temp_nginx_include_file_path_for_trap}"; \
+          if sudo nginx -t &>/dev/null; then sudo systemctl reload nginx &>/dev/null; fi; \
+          echo -e "${YELLOW}Đường dẫn tải xuống tạm thời đã được gỡ bỏ.${NC}"; \
+      fi; \
+      read -r -p "Nhấn Enter để quay lại menu..."; \
+      return 0;' ERR SIGINT SIGTERM
+
   sudo mkdir -p "${current_backup_dir}"
   
   # 1. Export Credentials & Workflows (thông qua container n8n)
@@ -62,7 +73,8 @@ backup_server() {
   stop_spinner
   
   # 4. Gom tất cả lại thành 1 file .tar.gz duy nhất
-  local final_backup_file="${BACKUP_DIR}/n8n_full_backup_${timestamp}.tar.gz"
+  local backup_filename="n8n_full_backup_${timestamp}.tar.gz"
+  local final_backup_file="${BACKUP_DIR}/${backup_filename}"
   run_silent_command "Đang nén toàn bộ dữ liệu thành 1 file (tùy dung lượng sẽ tốn vài phút)" "cd ${BACKUP_DIR} && tar -czf ${final_backup_file} $(basename ${current_backup_dir})" false
   
   if [ $? -eq 0 ]; then
@@ -70,13 +82,64 @@ backup_server() {
     sudo rm -rf "${current_backup_dir}"
     echo -e "${GREEN}[+] Đã sao lưu TOÀN BỘ hệ thống thành công!${NC}"
     echo -e "${YELLOW}File lưu tại: ${final_backup_file}${NC}"
-    echo -e "${YELLOW}[*] Bạn nên tải tệp tin này về máy cá nhân hoặc Cloud khác để lưu trữ an toàn.${NC}"
+    
+    # Tạo đường dẫn tải xuống tạm thời qua Nginx
+    local domain_name
+    domain_name=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
+    if [[ -n "$domain_name" ]]; then
+        local random_signature=$(generate_random_string 16)
+        sudo mkdir -p "${NGINX_EXPORT_INCLUDE_DIR}"
+        local temp_nginx_include_file="${NGINX_EXPORT_INCLUDE_DIR}/${NGINX_EXPORT_INCLUDE_FILE_BASENAME}_${random_signature}.conf"
+        temp_nginx_include_file_path_for_trap="${temp_nginx_include_file}"
+        local download_path_segment="n8n-backup-${random_signature}"
+
+        start_spinner "Tạo đường dẫn tải xuống tạm thời..."
+        local nginx_export_content=$(cat <<EOF
+location /${download_path_segment}/ {
+    alias ${BACKUP_DIR}/;
+    add_header Content-Disposition "attachment";
+    autoindex off;
+    expires off;
+}
+EOF
+)
+        echo "$nginx_export_content" | sudo tee "${temp_nginx_include_file}" > /dev/null
+        if sudo nginx -t > /tmp/nginx_export_test.log 2>&1; then
+            sudo systemctl reload nginx
+            stop_spinner
+            echo -e "\n${YELLOW}--- HƯỚNG DẪN TẢI XUỐNG ---${NC}"
+            echo -e "Bạn có thể tải xuống file Backup qua đường dẫn sau (chỉ có hiệu lực trong phiên này):"
+            echo -e "  Link tải: ${GREEN}https://${domain_name}/${download_path_segment}/${backup_filename}${NC}"
+            echo -e "\n${RED}QUAN TRỌNG:${NC} Sau khi tải xong, nhấn Enter để vô hiệu hoá đường dẫn này."
+            
+            read -r -p "Nhấn Enter sau khi bạn đã tải xong..."
+            
+            start_spinner "Vô hiệu hoá đường dẫn tải xuống..."
+            sudo rm -f "${temp_nginx_include_file}"
+            temp_nginx_include_file_path_for_trap=""
+            sudo systemctl reload nginx
+            stop_spinner
+            echo -e "${GREEN}Đường dẫn tải xuống đã được vô hiệu hoá.${NC}"
+        else
+            stop_spinner
+            echo -e "${RED}Lỗi cấu hình Nginx. Không thể tạo link tải. Kiểm tra /tmp/nginx_export_test.log.${NC}"
+            sudo rm -f "${temp_nginx_include_file}"
+            temp_nginx_include_file_path_for_trap=""
+            echo ""
+            read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+        fi
+    else
+        echo -e "${YELLOW}[*] Không thấy Domain, vui lòng dùng FTP sftp để tải file.${NC}"
+        echo ""
+        read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+    fi
   else
     echo -e "${RED}[!] Quá trình nén file thất bại.${NC}"
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
   fi
   
-  echo ""
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  trap - ERR SIGINT SIGTERM
 }
 
 # Phục hồi (Restore)
