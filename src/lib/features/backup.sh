@@ -100,7 +100,7 @@ restore_server() {
   for ((i=0; i<num_files; i++)); do
     local size=$(du -h "${files[i]}" | cut -f1)
     local filename=$(basename "${files[i]}")
-    printf " %-[%s]  %-40s %s\n" "$((i+1))" "$filename" "(Size: $size)"
+    printf " [%2d]  %-40s %s\n" "$((i+1))" "$filename" "(Size: $size)"
   done
   
   echo "--------------------------------------------------------"
