@@ -13,11 +13,13 @@ docker_prune() {
   echo -e "${RED}Lưu ý: Dữ liệu N8N của bạn sẽ không bị ảnh hưởng (vì chúng nằm trong Volume).${NC}"
   echo ""
   
-  read -p "Bạn có muốn tiếp tục dọn dẹp hệ thống không? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có muốn tiếp tục dọn dẹp hệ thống không? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
   fi
 
   # Chạy lệnh
@@ -31,6 +33,8 @@ docker_prune() {
     df -h / | tail -n 1 | awk '{print "Tổng: " $2 "\nĐã dùng: " $3 " (" $5 ")\nCòn trống: " $4}'
   fi
   
-  echo ""
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
 }

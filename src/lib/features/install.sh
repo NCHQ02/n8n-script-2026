@@ -29,24 +29,34 @@ install() {
   setup_directories_and_env_file
 
   local domain_name_for_install
-  if ! get_domain_and_dns_check_reusable domain_name_for_install "" "Nhập tên miền bạn muốn sử dụng cho N8N"; then
-    return 0
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_DOMAIN" ]]; then
+    domain_name_for_install="$CLI_DOMAIN"
+  else
+    if ! get_domain_and_dns_check_reusable domain_name_for_install "" "Nhập tên miền bạn muốn sử dụng cho N8N"; then
+      return 0
+    fi
   fi
   update_env_file "DOMAIN_NAME" "$domain_name_for_install"
 
   # Hỏi email thực để nhận thông báo khi chứng chỉ SSL sắp hết hạn
   local letsencrypt_email
-  while true; do
-    echo -n -e "${CYAN}Nhập email để nhận thông báo SSL (Let's Encrypt): ${NC}"
-    read -r letsencrypt_email
-    if [[ -z "$letsencrypt_email" ]]; then
-      echo -e "${RED}Email không được để trống.${NC}"
-    elif [[ ! "$letsencrypt_email" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
-      echo -e "${RED}Email không hợp lệ. Vui lòng nhập lại.${NC}"
-    else
-      break
-    fi
-  done
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_EMAIL" ]]; then
+    letsencrypt_email="$CLI_EMAIL"
+  elif [[ "$NON_INTERACTIVE" == "true" && -z "$CLI_EMAIL" ]]; then
+    letsencrypt_email="admin@${domain_name_for_install}"
+  else
+    while true; do
+      echo -n -e "${CYAN}Nhập email để nhận thông báo SSL (Let's Encrypt): ${NC}"
+      read -r letsencrypt_email
+      if [[ -z "$letsencrypt_email" ]]; then
+        echo -e "${RED}Email không được để trống.${NC}"
+      elif [[ ! "$letsencrypt_email" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
+        echo -e "${RED}Email không hợp lệ. Vui lòng nhập lại.${NC}"
+      else
+        break
+      fi
+    done
+  fi
   update_env_file "LETSENCRYPT_EMAIL" "$letsencrypt_email"
 
   generate_credentials
@@ -60,8 +70,11 @@ install() {
   echo -e "\n${GREEN}===================================================${NC}"
   echo -e "${GREEN}      Hoàn tất quá trình cài đặt N8N Cloud!       ${NC}"
   echo -e "${GREEN}===================================================${NC}\n"
-  echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-  read -r
+  
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+    read -r
+  fi
 }
 
 # --- Hàm Xóa N8N và Cài đặt lại ---

@@ -14,11 +14,13 @@ export_all_data() {
     domain_name=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
     if [[ -z "$domain_name" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy DOMAIN_NAME trong file ${ENV_FILE}.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then
+            read -r -p "Nhấn Enter để quay lại menu..."
+        fi
         return 0
     fi
 
-    local backup_base_dir="${N8N_DIR}/backups"
+    local backup_base_dir="${CLI_PATH:-${N8N_DIR}/backups}"
     local timestamp
     timestamp=$(date +"%Y%m%d_%H%M%S")
     local current_backup_dir="${backup_base_dir}/n8n_backup_${timestamp}"
@@ -35,7 +37,7 @@ export_all_data() {
             if sudo nginx -t &>/dev/null; then sudo systemctl reload nginx &>/dev/null; fi; \
             echo -e "${YELLOW}Đường dẫn tải xuống tạm thời đã được gỡ bỏ.${NC}"; \
         fi; \
-        read -r -p "Nhấn Enter để quay lại menu..."; \
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; \
         return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Chuẩn bị export dữ liệu..."
@@ -157,29 +159,38 @@ EOF
     stop_spinner
     echo -e "${GREEN}Đường dẫn tải xuống tạm thời đã được tạo.${NC}"
 
-    echo -e "\n${YELLOW}--- HƯỚNG DẪN TẢI XUỐNG ---${NC}"
-    echo -e "Các file backup đã được export thành công."
-    echo -e "Bạn có thể tải xuống qua các đường dẫn sau (chỉ có hiệu lực trong phiên này):"
-    echo -e "  Credentials: ${GREEN}https://${domain_name}/${download_path_segment}/${creds_file}${NC}"
-    echo -e "  Workflows:   ${GREEN}https://${domain_name}/${download_path_segment}/${workflows_file}${NC}"
-    echo -e "\n${RED}QUAN TRỌNG:${NC} Sau khi bạn tải xong, nhấn Enter để vô hiệu hoá các đường dẫn này."
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}--- HƯỚNG DẪN TẢI XUỐNG ---${NC}"
+        echo -e "Các file backup đã được export thành công."
+        echo -e "Bạn có thể tải xuống qua các đường dẫn sau (chỉ có hiệu lực trong phiên này):"
+        echo -e "  Credentials: ${GREEN}https://${domain_name}/${download_path_segment}/${creds_file}${NC}"
+        echo -e "  Workflows:   ${GREEN}https://${domain_name}/${download_path_segment}/${workflows_file}${NC}"
+        echo -e "\n${RED}QUAN TRỌNG:${NC} Sau khi bạn tải xong, nhấn Enter để vô hiệu hoá các đường dẫn này."
 
-    read -r -p "Nhấn Enter sau khi bạn đã tải xong các file..."
+        read -r -p "Nhấn Enter sau khi bạn đã tải xong các file..."
 
-    start_spinner "Vô hiệu hoá đường dẫn tải xuống..."
-    sudo rm -f "${temp_nginx_include_file}"
-    temp_nginx_include_file_path_for_trap=""
-    if ! sudo nginx -t > /tmp/nginx_export_test_remove.log 2>&1; then
-        echo -e "\n${YELLOW}Cảnh báo: Có lỗi khi kiểm tra Nginx sau khi xóa file include, nhưng vẫn tiếp tục.${NC}"
+        start_spinner "Vô hiệu hoá đường dẫn tải xuống..."
+        sudo rm -f "${temp_nginx_include_file}"
+        temp_nginx_include_file_path_for_trap=""
+        if ! sudo nginx -t > /tmp/nginx_export_test_remove.log 2>&1; then
+            echo -e "\n${YELLOW}Cảnh báo: Có lỗi khi kiểm tra Nginx sau khi xóa file include, nhưng vẫn tiếp tục.${NC}"
+        fi
+        sudo systemctl reload nginx
+        stop_spinner
+        echo -e "${GREEN}Đường dẫn tải xuống đã được vô hiệu hoá.${NC}"
+    else
+        # Xóa ngay Nginx config nếu chạy qua CLI (tránh quên)
+        sudo rm -f "${temp_nginx_include_file}"
+        temp_nginx_include_file_path_for_trap=""
+        sudo systemctl reload nginx &>/dev/null
     fi
-    sudo systemctl reload nginx
-    stop_spinner
-    echo -e "${GREEN}Đường dẫn tải xuống đã được vô hiệu hoá.${NC}"
-    echo -e "Các file backup vẫn được lưu trữ tại: ${YELLOW}${current_backup_dir}${NC} trên server."
+    echo -e "Các file backup được lưu trữ tại: ${YELLOW}${current_backup_dir}${NC} trên server."
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # --- Hàm Import Dữ Liệu ---
@@ -189,23 +200,23 @@ import_data() {
     if [[ ! -f "${ENV_FILE}" || ! -f "${DOCKER_COMPOSE_FILE}" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy file cấu hình ${ENV_FILE} hoặc ${DOCKER_COMPOSE_FILE}.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
-    local template_file_full_path="${TEMPLATE_DIR}/${TEMPLATE_FILE_NAME}"
+    local template_file_full_path="${CLI_FILE:-${TEMPLATE_DIR}/${TEMPLATE_FILE_NAME}}"
 
     if [ ! -f "$template_file_full_path" ]; then
-        echo -e "${RED}Lỗi: File template '${template_file_full_path}' không tìm thấy trên server.${NC}"
-        echo -e "${YELLOW}Vui lòng tạo thư mục '${TEMPLATE_DIR}' và đặt file '${TEMPLATE_FILE_NAME}' vào đó.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        echo -e "${RED}Lỗi: File data '${template_file_full_path}' không tìm thấy trên server.${NC}"
+        echo -e "${YELLOW}Vui lòng cấp đúng đường dẫn file JSON có đuôi .json.${NC}"
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
     trap 'RC=$?; stop_spinner; \
         echo -e "\n${YELLOW}Huỷ bỏ/Lỗi trong quá trình import (Mã lỗi: $RC). Đang dọn dẹp...${NC}"; \
         sudo docker exec -u node ${N8N_CONTAINER_NAME} rm -rf "/home/node/.n8n/temp_import_template_$$" &>/dev/null; \
-        read -r -p "Nhấn Enter để quay lại menu..."; \
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; \
         return 0;' ERR SIGINT SIGTERM
 
     local container_temp_import_dir="/home/node/.n8n/temp_import_template_$$"
@@ -217,26 +228,37 @@ import_data() {
         return 1
     fi
 
-    local docker_cp_command="docker cp \"${template_file_full_path}\" \"${N8N_CONTAINER_NAME}:${container_temp_import_dir}/${TEMPLATE_FILE_NAME}\""
+    local target_file_name
+    target_file_name=$(basename "$template_file_full_path")
+    local docker_cp_command="docker cp \"${template_file_full_path}\" \"${N8N_CONTAINER_NAME}:${container_temp_import_dir}/${target_file_name}\""
     if ! sudo bash -c "$docker_cp_command" >/dev/null 2>&1; then
-        echo -e "${RED}Lỗi khi sao chép file template vào container.${NC}"
+        echo -e "${RED}Lỗi khi sao chép file data vào container.${NC}"
         sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_import_dir}" &>/dev/null
         return 1
     fi
 
-    start_spinner "Đang import workflow từ template ${TEMPLATE_FILE_NAME}..."
-    local import_cmd="n8n import:workflow --input=${container_temp_import_dir}/${TEMPLATE_FILE_NAME}"
+    start_spinner "Đang import dữ liệu từ file ${target_file_name}..."
+    local import_cmd="n8n import:workflow --input=${container_temp_import_dir}/${target_file_name}"
+    # Nếu file tên credentials thì đổi cờ
+    if [[ "$target_file_name" == *"credential"* ]]; then
+        import_cmd="n8n import:credentials --input=${container_temp_import_dir}/${target_file_name}"
+    fi
+
     local import_log="/tmp/n8n_import_template.log"
 
     if ! sudo docker exec -u node "${N8N_CONTAINER_NAME}" ${import_cmd} > "${import_log}" 2>&1; then
         stop_spinner
-        echo -e "\n${RED}Lỗi khi import workflow từ template.${NC}"
+        echo -e "\n${RED}Lỗi khi import dữ liệu.${NC}"
+        cat "${import_log}"
     else
         stop_spinner
-        echo -e "\n${YELLOW}--- HƯỚNG DẪN SỬ DỤNG ---${NC}"
-        echo -e "1. Truy cập vào N8N qua trình duyệt."
-        echo -e "2. Tìm workflow ${GREEN}[CloudFly] Import Workflows, Credentials${NC} trong danh sách 'Workflows'."
-        echo -e "3. ${GREEN}Kích hoạt (Activate)${NC} workflow và đọc hướng dẫn trong workflow để sử dụng."
+        echo -e "\n${GREEN}[+] Import dữ liệu thành công!${NC}"
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then
+            echo -e "\n${YELLOW}--- HƯỚNG DẪN SỬ DỤNG ---${NC}"
+            echo -e "1. Truy cập vào N8N qua trình duyệt."
+            echo -e "2. Kiểm tra lại workflows và credentials mới vừa nạp vào."
+            echo -e "3. Đảm bảo cấu hình lại Token & API Key cần thiết."
+        fi
     fi
     sudo rm -f "${import_log}"
 
@@ -245,6 +267,8 @@ import_data() {
     stop_spinner
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }

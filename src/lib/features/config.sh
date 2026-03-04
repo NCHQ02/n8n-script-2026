@@ -6,8 +6,23 @@ configure_environment() {
     echo -e "${CYAN}=== CẤU HÌNH BIẾN MÔI TRƯỜNG N8N ===${NC}"
     if [ ! -f "$ENV_FILE" ]; then
       echo -e "${RED}[!] Không tìm thấy cấu hình ${ENV_FILE}. Vui lòng cài đặt N8N trước.${NC}"
-      read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+      if [[ "$NON_INTERACTIVE" != "true" ]]; then read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."; fi
       return 1
+    fi
+
+    if [[ "$NON_INTERACTIVE" == "true" && "$CLI_ACTION" == "config-set" ]]; then
+      if [[ -z "$CLI_KEY" || -z "$CLI_VALUE" ]]; then
+        echo -e "${RED}[!] Cần truyền đủ --key và --value để cài đặt. VD: n8n-host --config-set --key GENERIC_TIMEZONE --value Asia/Ho_Chi_Minh${NC}"
+        return 1
+      fi
+      run_silent_command "Đang lưu cấu hình ${CLI_KEY}=${CLI_VALUE}" "update_env_file '${CLI_KEY}' '${CLI_VALUE}'" false
+      echo -e "${GREEN}[+] Đã lưu cấu hình. Để áp dụng, hãy chạy: n8n-host --config-set --key RESTART --value NOW (hoặc Restart thủ công)${NC}"
+
+      if [[ "$CLI_KEY" == "RESTART" ]]; then
+         run_silent_command "Đang tải lại Server với Cấu hình Mới!" "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} up -d" false
+         echo -e "${GREEN}[+] Hệ thống đã được Recreate với Cấu hình môi trường mới!${NC}"
+      fi
+      return 0
     fi
 
     # Lấy thông tin hiện tại

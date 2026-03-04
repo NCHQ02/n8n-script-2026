@@ -24,11 +24,13 @@ backup_server() {
   echo "- Thư mục cấu hình N8N"
   echo ""
   
-  read -p "Bạn có muốn tiếp tục Backup không? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có muốn tiếp tục Backup không? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
   fi
 
   local temp_nginx_include_file_path_for_trap=""
@@ -136,7 +138,9 @@ EOF
   else
     echo -e "${RED}[!] Quá trình nén file thất bại.${NC}"
     echo ""
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
     read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
   fi
   
   trap - ERR SIGINT SIGTERM
@@ -154,48 +158,61 @@ restore_server() {
     return 1
   fi
   
-  echo -e "${YELLOW}[*] Danh sách các bản Backup có trên Server:${NC}"
-  echo "--------------------------------------------------------"
-  
-  # Liệt kê file
-  local files=(${BACKUP_DIR}/*.tar.gz)
-  local num_files=${#files[@]}
-  for ((i=0; i<num_files; i++)); do
-    local size=$(du -h "${files[i]}" | cut -f1)
-    local filename=$(basename "${files[i]}")
-    printf " [%2d]  %-40s %s\n" "$((i+1))" "$filename" "(Size: $size)"
-  done
-  
-  echo "--------------------------------------------------------"
-  echo " [0]  Hủy bỏ và quay lại"
-  echo ""
-  
-  read -p "Chọn số tương ứng với file bạn muốn Restore (0-${num_files}): " choice
-  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 0 ] || [ "$choice" -gt "$num_files" ]; then
-     echo -e "${RED}[!] Lựa chọn không hợp lệ.${NC}"
-     sleep 1
-     return 1
+  local selected_file
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_FILE" ]]; then
+    selected_file="$CLI_FILE"
+    if [ ! -f "$selected_file" ]; then
+      echo -e "${RED}[!] Không tìm thấy file: $selected_file${NC}"
+      return 1
+    fi
+  else
+    echo -e "${YELLOW}[*] Danh sách các bản Backup có trên Server:${NC}"
+    echo "--------------------------------------------------------"
+    
+    # Liệt kê file
+    local files=(${BACKUP_DIR}/*.tar.gz)
+    local num_files=${#files[@]}
+    for ((i=0; i<num_files; i++)); do
+      local size=$(du -h "${files[i]}" | cut -f1)
+      local filename=$(basename "${files[i]}")
+      printf " [%2d]  %-40s %s\n" "$((i+1))" "$filename" "(Size: $size)"
+    done
+    
+    echo "--------------------------------------------------------"
+    echo " [0]  Hủy bỏ và quay lại"
+    echo ""
+    
+    read -p "Chọn số tương ứng với file bạn muốn Restore (0-${num_files}): " choice
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 0 ] || [ "$choice" -gt "$num_files" ]; then
+       echo -e "${RED}[!] Lựa chọn không hợp lệ.${NC}"
+       sleep 1
+       return 1
+    fi
+    
+    if [ "$choice" -eq 0 ]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
+    
+    # Lấy tên file Restore
+    selected_file=${files[$((choice-1))]}
   fi
-  
-  if [ "$choice" -eq 0 ]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
-  fi
-  
-  # Lấy tên file Restore
-  local selected_file=${files[$((choice-1))]}
   
   echo -e "\n${RED}[!!!] CẢNH BÁO NGUY HIỂM [!!!]${NC}"
   echo "Bạn đang yêu cầu phục hồi dữ liệu từ file: $(basename $selected_file)"
   echo "Điều này sẽ XÓA TOÀN BỘ dữ liệu hiện tại trong N8N (Database, Workflow mới) và GHI ĐÈ dữ liệu từ Backup!"
   echo ""
   
-  read -p "Bạn có CHẮC CHẮN MUỐN PHỤC HỒI hệ thống từ bản sao này không? Kể cả việc ghi đè tất cả? (Thay vì 'y', nhập chữ 'RESTORE' để đồng ý): " confirm_word
-  if [[ "$confirm_word" != "RESTORE" ]]; then
-    echo -e "${YELLOW}[*] Không trùng khớp (bạn không nhập từ RESTORE). Đã hủy thao tác.${NC}"
-    sleep 2
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có CHẮC CHẮN MUỐN PHỤC HỒI hệ thống từ bản sao này không? Kể cả việc ghi đè tất cả? (Thay vì 'y', nhập chữ 'RESTORE' để đồng ý): " confirm_word
+    if [[ "$confirm_word" != "RESTORE" ]]; then
+      echo -e "${YELLOW}[*] Không trùng khớp (bạn không nhập từ RESTORE). Đã hủy thao tác.${NC}"
+      sleep 2
+      return 0
+    fi
+  else
+    echo -e "${YELLOW}[*] Khởi chạy chế độ tự động RESTORE không cần hỏi...${NC}"
   fi
   
   # Tạo thư mục giải nén tạm thời
@@ -267,8 +284,10 @@ restore_server() {
   echo -e "\n${GREEN}[+] Chúc mừng! Quá trình phục hồi (Restore) TOÀN DIỆN đã thành công!${NC}"
   echo -e "${YELLOW}[*] N8N đã sẵn sàng với bộ dữ liệu Database, Workflows và Credentials cũ.${NC}"
   
-  echo ""
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
 }
 
 # Chạy Backup tự động không cần prompt (Dành cho Cronjob)
@@ -328,7 +347,13 @@ configure_auto_backup() {
   fi
   echo "--------------------------------------------------------"
 
-  read -p "Bạn muốn ON (Bật) hay OFF (Tắt) chức năng này? (nhập on/off/hủy): " confirm
+  local confirm
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_VALUE" ]]; then
+    confirm="$CLI_VALUE"
+  else
+    read -p "Bạn muốn ON (Bật) hay OFF (Tắt) chức năng này? (nhập on/off/hủy): " confirm
+  fi
+
   if [[ "$confirm" == "on" || "$confirm" == "ON" ]]; then
     (crontab -l 2>/dev/null | grep -v "${INSTALL_PATH} --backup-cron") | crontab -
     (crontab -l 2>/dev/null; echo "0 0 * * * ${INSTALL_PATH} --backup-cron > /dev/null 2>&1") | crontab -
@@ -339,5 +364,8 @@ configure_auto_backup() {
   else
     echo "Đã hủy thao tác."
   fi
-  sleep 2
+  
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    sleep 2
+  fi
 }

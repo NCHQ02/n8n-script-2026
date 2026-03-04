@@ -677,24 +677,34 @@ install() {
   setup_directories_and_env_file
 
   local domain_name_for_install
-  if ! get_domain_and_dns_check_reusable domain_name_for_install "" "Nhập tên miền bạn muốn sử dụng cho N8N"; then
-    return 0
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_DOMAIN" ]]; then
+    domain_name_for_install="$CLI_DOMAIN"
+  else
+    if ! get_domain_and_dns_check_reusable domain_name_for_install "" "Nhập tên miền bạn muốn sử dụng cho N8N"; then
+      return 0
+    fi
   fi
   update_env_file "DOMAIN_NAME" "$domain_name_for_install"
 
   # Hỏi email thực để nhận thông báo khi chứng chỉ SSL sắp hết hạn
   local letsencrypt_email
-  while true; do
-    echo -n -e "${CYAN}Nhập email để nhận thông báo SSL (Let's Encrypt): ${NC}"
-    read -r letsencrypt_email
-    if [[ -z "$letsencrypt_email" ]]; then
-      echo -e "${RED}Email không được để trống.${NC}"
-    elif [[ ! "$letsencrypt_email" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
-      echo -e "${RED}Email không hợp lệ. Vui lòng nhập lại.${NC}"
-    else
-      break
-    fi
-  done
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_EMAIL" ]]; then
+    letsencrypt_email="$CLI_EMAIL"
+  elif [[ "$NON_INTERACTIVE" == "true" && -z "$CLI_EMAIL" ]]; then
+    letsencrypt_email="admin@${domain_name_for_install}"
+  else
+    while true; do
+      echo -n -e "${CYAN}Nhập email để nhận thông báo SSL (Let's Encrypt): ${NC}"
+      read -r letsencrypt_email
+      if [[ -z "$letsencrypt_email" ]]; then
+        echo -e "${RED}Email không được để trống.${NC}"
+      elif [[ ! "$letsencrypt_email" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
+        echo -e "${RED}Email không hợp lệ. Vui lòng nhập lại.${NC}"
+      else
+        break
+      fi
+    done
+  fi
   update_env_file "LETSENCRYPT_EMAIL" "$letsencrypt_email"
 
   generate_credentials
@@ -708,8 +718,11 @@ install() {
   echo -e "\n${GREEN}===================================================${NC}"
   echo -e "${GREEN}      Hoàn tất quá trình cài đặt N8N Cloud!       ${NC}"
   echo -e "${GREEN}===================================================${NC}\n"
-  echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-  read -r
+  
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+    read -r
+  fi
 }
 
 # --- Hàm Xóa N8N và Cài đặt lại ---
@@ -1008,25 +1021,31 @@ disable_mfa() {
     fi
 
     local user_email
-    echo -n -e "Nhập địa chỉ email của tài khoản N8N cần tắt 2FA: "
-    read -r user_email
+    if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_EMAIL" ]]; then
+        user_email="$CLI_EMAIL"
+    else
+        echo -n -e "Nhập địa chỉ email của tài khoản N8N cần tắt 2FA: "
+        read -r user_email
 
-    if [[ -z "$user_email" ]]; then
-        echo -e "${RED}Email không được để trống. Huỷ bỏ thao tác.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ -z "$user_email" ]]; then
+            echo -e "${RED}Email không được để trống. Huỷ bỏ thao tác.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
-    echo -e "\n${YELLOW}Bạn có chắc chắn muốn tắt 2FA cho tài khoản với email ${GREEN}${user_email}${NC} không?${NC}"
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "Nhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Bạn có chắc chắn muốn tắt 2FA cho tài khoản với email ${GREEN}${user_email}${NC} không?${NC}"
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "Nhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thao tác tắt 2FA.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thao tác tắt 2FA.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
     trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
@@ -1058,8 +1077,10 @@ disable_mfa() {
     sudo rm -f "${disable_mfa_log}"
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # --- Hàm Đặt lại thông tin đăng nhập ---
@@ -1074,17 +1095,19 @@ reset_user_login() {
         return 0
     fi
 
-    echo -e "\n${YELLOW}CẢNH BÁO: Hành động này sẽ reset toàn bộ thông tin tài khoản owner (người dùng chủ sở hữu).${NC}"
-    echo -e "${YELLOW}Sau khi reset, bạn sẽ cần phải tạo lại tài khoản owner khi truy cập N8N lần đầu.${NC}"
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}CẢNH BÁO: Hành động này sẽ reset toàn bộ thông tin tài khoản owner (người dùng chủ sở hữu).${NC}"
+        echo -e "${YELLOW}Sau khi reset, bạn sẽ cần phải tạo lại tài khoản owner khi truy cập N8N lần đầu.${NC}"
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thao tác đặt lại thông tin đăng nhập.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thao tác đặt lại thông tin đăng nhập.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
     trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
@@ -1130,8 +1153,10 @@ reset_user_login() {
     sudo rm -f "${reset_log}"
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # ---- src/lib/features/data.sh ----
@@ -1151,11 +1176,13 @@ export_all_data() {
     domain_name=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
     if [[ -z "$domain_name" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy DOMAIN_NAME trong file ${ENV_FILE}.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then
+            read -r -p "Nhấn Enter để quay lại menu..."
+        fi
         return 0
     fi
 
-    local backup_base_dir="${N8N_DIR}/backups"
+    local backup_base_dir="${CLI_PATH:-${N8N_DIR}/backups}"
     local timestamp
     timestamp=$(date +"%Y%m%d_%H%M%S")
     local current_backup_dir="${backup_base_dir}/n8n_backup_${timestamp}"
@@ -1172,7 +1199,7 @@ export_all_data() {
             if sudo nginx -t &>/dev/null; then sudo systemctl reload nginx &>/dev/null; fi; \
             echo -e "${YELLOW}Đường dẫn tải xuống tạm thời đã được gỡ bỏ.${NC}"; \
         fi; \
-        read -r -p "Nhấn Enter để quay lại menu..."; \
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; \
         return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Chuẩn bị export dữ liệu..."
@@ -1294,29 +1321,38 @@ EOF
     stop_spinner
     echo -e "${GREEN}Đường dẫn tải xuống tạm thời đã được tạo.${NC}"
 
-    echo -e "\n${YELLOW}--- HƯỚNG DẪN TẢI XUỐNG ---${NC}"
-    echo -e "Các file backup đã được export thành công."
-    echo -e "Bạn có thể tải xuống qua các đường dẫn sau (chỉ có hiệu lực trong phiên này):"
-    echo -e "  Credentials: ${GREEN}https://${domain_name}/${download_path_segment}/${creds_file}${NC}"
-    echo -e "  Workflows:   ${GREEN}https://${domain_name}/${download_path_segment}/${workflows_file}${NC}"
-    echo -e "\n${RED}QUAN TRỌNG:${NC} Sau khi bạn tải xong, nhấn Enter để vô hiệu hoá các đường dẫn này."
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}--- HƯỚNG DẪN TẢI XUỐNG ---${NC}"
+        echo -e "Các file backup đã được export thành công."
+        echo -e "Bạn có thể tải xuống qua các đường dẫn sau (chỉ có hiệu lực trong phiên này):"
+        echo -e "  Credentials: ${GREEN}https://${domain_name}/${download_path_segment}/${creds_file}${NC}"
+        echo -e "  Workflows:   ${GREEN}https://${domain_name}/${download_path_segment}/${workflows_file}${NC}"
+        echo -e "\n${RED}QUAN TRỌNG:${NC} Sau khi bạn tải xong, nhấn Enter để vô hiệu hoá các đường dẫn này."
 
-    read -r -p "Nhấn Enter sau khi bạn đã tải xong các file..."
+        read -r -p "Nhấn Enter sau khi bạn đã tải xong các file..."
 
-    start_spinner "Vô hiệu hoá đường dẫn tải xuống..."
-    sudo rm -f "${temp_nginx_include_file}"
-    temp_nginx_include_file_path_for_trap=""
-    if ! sudo nginx -t > /tmp/nginx_export_test_remove.log 2>&1; then
-        echo -e "\n${YELLOW}Cảnh báo: Có lỗi khi kiểm tra Nginx sau khi xóa file include, nhưng vẫn tiếp tục.${NC}"
+        start_spinner "Vô hiệu hoá đường dẫn tải xuống..."
+        sudo rm -f "${temp_nginx_include_file}"
+        temp_nginx_include_file_path_for_trap=""
+        if ! sudo nginx -t > /tmp/nginx_export_test_remove.log 2>&1; then
+            echo -e "\n${YELLOW}Cảnh báo: Có lỗi khi kiểm tra Nginx sau khi xóa file include, nhưng vẫn tiếp tục.${NC}"
+        fi
+        sudo systemctl reload nginx
+        stop_spinner
+        echo -e "${GREEN}Đường dẫn tải xuống đã được vô hiệu hoá.${NC}"
+    else
+        # Xóa ngay Nginx config nếu chạy qua CLI (tránh quên)
+        sudo rm -f "${temp_nginx_include_file}"
+        temp_nginx_include_file_path_for_trap=""
+        sudo systemctl reload nginx &>/dev/null
     fi
-    sudo systemctl reload nginx
-    stop_spinner
-    echo -e "${GREEN}Đường dẫn tải xuống đã được vô hiệu hoá.${NC}"
-    echo -e "Các file backup vẫn được lưu trữ tại: ${YELLOW}${current_backup_dir}${NC} trên server."
+    echo -e "Các file backup được lưu trữ tại: ${YELLOW}${current_backup_dir}${NC} trên server."
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # --- Hàm Import Dữ Liệu ---
@@ -1326,23 +1362,23 @@ import_data() {
     if [[ ! -f "${ENV_FILE}" || ! -f "${DOCKER_COMPOSE_FILE}" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy file cấu hình ${ENV_FILE} hoặc ${DOCKER_COMPOSE_FILE}.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
-    local template_file_full_path="${TEMPLATE_DIR}/${TEMPLATE_FILE_NAME}"
+    local template_file_full_path="${CLI_FILE:-${TEMPLATE_DIR}/${TEMPLATE_FILE_NAME}}"
 
     if [ ! -f "$template_file_full_path" ]; then
-        echo -e "${RED}Lỗi: File template '${template_file_full_path}' không tìm thấy trên server.${NC}"
-        echo -e "${YELLOW}Vui lòng tạo thư mục '${TEMPLATE_DIR}' và đặt file '${TEMPLATE_FILE_NAME}' vào đó.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        echo -e "${RED}Lỗi: File data '${template_file_full_path}' không tìm thấy trên server.${NC}"
+        echo -e "${YELLOW}Vui lòng cấp đúng đường dẫn file JSON có đuôi .json.${NC}"
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
     trap 'RC=$?; stop_spinner; \
         echo -e "\n${YELLOW}Huỷ bỏ/Lỗi trong quá trình import (Mã lỗi: $RC). Đang dọn dẹp...${NC}"; \
         sudo docker exec -u node ${N8N_CONTAINER_NAME} rm -rf "/home/node/.n8n/temp_import_template_$$" &>/dev/null; \
-        read -r -p "Nhấn Enter để quay lại menu..."; \
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; \
         return 0;' ERR SIGINT SIGTERM
 
     local container_temp_import_dir="/home/node/.n8n/temp_import_template_$$"
@@ -1354,26 +1390,37 @@ import_data() {
         return 1
     fi
 
-    local docker_cp_command="docker cp \"${template_file_full_path}\" \"${N8N_CONTAINER_NAME}:${container_temp_import_dir}/${TEMPLATE_FILE_NAME}\""
+    local target_file_name
+    target_file_name=$(basename "$template_file_full_path")
+    local docker_cp_command="docker cp \"${template_file_full_path}\" \"${N8N_CONTAINER_NAME}:${container_temp_import_dir}/${target_file_name}\""
     if ! sudo bash -c "$docker_cp_command" >/dev/null 2>&1; then
-        echo -e "${RED}Lỗi khi sao chép file template vào container.${NC}"
+        echo -e "${RED}Lỗi khi sao chép file data vào container.${NC}"
         sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_import_dir}" &>/dev/null
         return 1
     fi
 
-    start_spinner "Đang import workflow từ template ${TEMPLATE_FILE_NAME}..."
-    local import_cmd="n8n import:workflow --input=${container_temp_import_dir}/${TEMPLATE_FILE_NAME}"
+    start_spinner "Đang import dữ liệu từ file ${target_file_name}..."
+    local import_cmd="n8n import:workflow --input=${container_temp_import_dir}/${target_file_name}"
+    # Nếu file tên credentials thì đổi cờ
+    if [[ "$target_file_name" == *"credential"* ]]; then
+        import_cmd="n8n import:credentials --input=${container_temp_import_dir}/${target_file_name}"
+    fi
+
     local import_log="/tmp/n8n_import_template.log"
 
     if ! sudo docker exec -u node "${N8N_CONTAINER_NAME}" ${import_cmd} > "${import_log}" 2>&1; then
         stop_spinner
-        echo -e "\n${RED}Lỗi khi import workflow từ template.${NC}"
+        echo -e "\n${RED}Lỗi khi import dữ liệu.${NC}"
+        cat "${import_log}"
     else
         stop_spinner
-        echo -e "\n${YELLOW}--- HƯỚNG DẪN SỬ DỤNG ---${NC}"
-        echo -e "1. Truy cập vào N8N qua trình duyệt."
-        echo -e "2. Tìm workflow ${GREEN}[CloudFly] Import Workflows, Credentials${NC} trong danh sách 'Workflows'."
-        echo -e "3. ${GREEN}Kích hoạt (Activate)${NC} workflow và đọc hướng dẫn trong workflow để sử dụng."
+        echo -e "\n${GREEN}[+] Import dữ liệu thành công!${NC}"
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then
+            echo -e "\n${YELLOW}--- HƯỚNG DẪN SỬ DỤNG ---${NC}"
+            echo -e "1. Truy cập vào N8N qua trình duyệt."
+            echo -e "2. Kiểm tra lại workflows và credentials mới vừa nạp vào."
+            echo -e "3. Đảm bảo cấu hình lại Token & API Key cần thiết."
+        fi
     fi
     sudo rm -f "${import_log}"
 
@@ -1382,8 +1429,10 @@ import_data() {
     stop_spinner
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # ---- src/lib/features/redis.sh ----
@@ -1551,11 +1600,13 @@ docker_prune() {
   echo -e "${RED}Lưu ý: Dữ liệu N8N của bạn sẽ không bị ảnh hưởng (vì chúng nằm trong Volume).${NC}"
   echo ""
   
-  read -p "Bạn có muốn tiếp tục dọn dẹp hệ thống không? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có muốn tiếp tục dọn dẹp hệ thống không? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
   fi
 
   # Chạy lệnh
@@ -1569,8 +1620,10 @@ docker_prune() {
     df -h / | tail -n 1 | awk '{print "Tổng: " $2 "\nĐã dùng: " $3 " (" $5 ")\nCòn trống: " $4}'
   fi
   
-  echo ""
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
 }
 
 # ---- src/lib/features/backup.sh ----
@@ -1600,11 +1653,13 @@ backup_server() {
   echo "- Thư mục cấu hình N8N"
   echo ""
   
-  read -p "Bạn có muốn tiếp tục Backup không? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có muốn tiếp tục Backup không? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
   fi
 
   local temp_nginx_include_file_path_for_trap=""
@@ -1712,7 +1767,9 @@ EOF
   else
     echo -e "${RED}[!] Quá trình nén file thất bại.${NC}"
     echo ""
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
     read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
   fi
   
   trap - ERR SIGINT SIGTERM
@@ -1730,48 +1787,61 @@ restore_server() {
     return 1
   fi
   
-  echo -e "${YELLOW}[*] Danh sách các bản Backup có trên Server:${NC}"
-  echo "--------------------------------------------------------"
-  
-  # Liệt kê file
-  local files=(${BACKUP_DIR}/*.tar.gz)
-  local num_files=${#files[@]}
-  for ((i=0; i<num_files; i++)); do
-    local size=$(du -h "${files[i]}" | cut -f1)
-    local filename=$(basename "${files[i]}")
-    printf " [%2d]  %-40s %s\n" "$((i+1))" "$filename" "(Size: $size)"
-  done
-  
-  echo "--------------------------------------------------------"
-  echo " [0]  Hủy bỏ và quay lại"
-  echo ""
-  
-  read -p "Chọn số tương ứng với file bạn muốn Restore (0-${num_files}): " choice
-  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 0 ] || [ "$choice" -gt "$num_files" ]; then
-     echo -e "${RED}[!] Lựa chọn không hợp lệ.${NC}"
-     sleep 1
-     return 1
+  local selected_file
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_FILE" ]]; then
+    selected_file="$CLI_FILE"
+    if [ ! -f "$selected_file" ]; then
+      echo -e "${RED}[!] Không tìm thấy file: $selected_file${NC}"
+      return 1
+    fi
+  else
+    echo -e "${YELLOW}[*] Danh sách các bản Backup có trên Server:${NC}"
+    echo "--------------------------------------------------------"
+    
+    # Liệt kê file
+    local files=(${BACKUP_DIR}/*.tar.gz)
+    local num_files=${#files[@]}
+    for ((i=0; i<num_files; i++)); do
+      local size=$(du -h "${files[i]}" | cut -f1)
+      local filename=$(basename "${files[i]}")
+      printf " [%2d]  %-40s %s\n" "$((i+1))" "$filename" "(Size: $size)"
+    done
+    
+    echo "--------------------------------------------------------"
+    echo " [0]  Hủy bỏ và quay lại"
+    echo ""
+    
+    read -p "Chọn số tương ứng với file bạn muốn Restore (0-${num_files}): " choice
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 0 ] || [ "$choice" -gt "$num_files" ]; then
+       echo -e "${RED}[!] Lựa chọn không hợp lệ.${NC}"
+       sleep 1
+       return 1
+    fi
+    
+    if [ "$choice" -eq 0 ]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
+    
+    # Lấy tên file Restore
+    selected_file=${files[$((choice-1))]}
   fi
-  
-  if [ "$choice" -eq 0 ]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
-  fi
-  
-  # Lấy tên file Restore
-  local selected_file=${files[$((choice-1))]}
   
   echo -e "\n${RED}[!!!] CẢNH BÁO NGUY HIỂM [!!!]${NC}"
   echo "Bạn đang yêu cầu phục hồi dữ liệu từ file: $(basename $selected_file)"
   echo "Điều này sẽ XÓA TOÀN BỘ dữ liệu hiện tại trong N8N (Database, Workflow mới) và GHI ĐÈ dữ liệu từ Backup!"
   echo ""
   
-  read -p "Bạn có CHẮC CHẮN MUỐN PHỤC HỒI hệ thống từ bản sao này không? Kể cả việc ghi đè tất cả? (Thay vì 'y', nhập chữ 'RESTORE' để đồng ý): " confirm_word
-  if [[ "$confirm_word" != "RESTORE" ]]; then
-    echo -e "${YELLOW}[*] Không trùng khớp (bạn không nhập từ RESTORE). Đã hủy thao tác.${NC}"
-    sleep 2
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có CHẮC CHẮN MUỐN PHỤC HỒI hệ thống từ bản sao này không? Kể cả việc ghi đè tất cả? (Thay vì 'y', nhập chữ 'RESTORE' để đồng ý): " confirm_word
+    if [[ "$confirm_word" != "RESTORE" ]]; then
+      echo -e "${YELLOW}[*] Không trùng khớp (bạn không nhập từ RESTORE). Đã hủy thao tác.${NC}"
+      sleep 2
+      return 0
+    fi
+  else
+    echo -e "${YELLOW}[*] Khởi chạy chế độ tự động RESTORE không cần hỏi...${NC}"
   fi
   
   # Tạo thư mục giải nén tạm thời
@@ -1843,8 +1913,10 @@ restore_server() {
   echo -e "\n${GREEN}[+] Chúc mừng! Quá trình phục hồi (Restore) TOÀN DIỆN đã thành công!${NC}"
   echo -e "${YELLOW}[*] N8N đã sẵn sàng với bộ dữ liệu Database, Workflows và Credentials cũ.${NC}"
   
-  echo ""
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
 }
 
 # Chạy Backup tự động không cần prompt (Dành cho Cronjob)
@@ -1904,7 +1976,13 @@ configure_auto_backup() {
   fi
   echo "--------------------------------------------------------"
 
-  read -p "Bạn muốn ON (Bật) hay OFF (Tắt) chức năng này? (nhập on/off/hủy): " confirm
+  local confirm
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_VALUE" ]]; then
+    confirm="$CLI_VALUE"
+  else
+    read -p "Bạn muốn ON (Bật) hay OFF (Tắt) chức năng này? (nhập on/off/hủy): " confirm
+  fi
+
   if [[ "$confirm" == "on" || "$confirm" == "ON" ]]; then
     (crontab -l 2>/dev/null | grep -v "${INSTALL_PATH} --backup-cron") | crontab -
     (crontab -l 2>/dev/null; echo "0 0 * * * ${INSTALL_PATH} --backup-cron > /dev/null 2>&1") | crontab -
@@ -1915,7 +1993,10 @@ configure_auto_backup() {
   else
     echo "Đã hủy thao tác."
   fi
-  sleep 2
+  
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    sleep 2
+  fi
 }
 
 # ---- src/lib/features/config.sh ----
@@ -1927,8 +2008,23 @@ configure_environment() {
     echo -e "${CYAN}=== CẤU HÌNH BIẾN MÔI TRƯỜNG N8N ===${NC}"
     if [ ! -f "$ENV_FILE" ]; then
       echo -e "${RED}[!] Không tìm thấy cấu hình ${ENV_FILE}. Vui lòng cài đặt N8N trước.${NC}"
-      read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+      if [[ "$NON_INTERACTIVE" != "true" ]]; then read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."; fi
       return 1
+    fi
+
+    if [[ "$NON_INTERACTIVE" == "true" && "$CLI_ACTION" == "config-set" ]]; then
+      if [[ -z "$CLI_KEY" || -z "$CLI_VALUE" ]]; then
+        echo -e "${RED}[!] Cần truyền đủ --key và --value để cài đặt. VD: n8n-host --config-set --key GENERIC_TIMEZONE --value Asia/Ho_Chi_Minh${NC}"
+        return 1
+      fi
+      run_silent_command "Đang lưu cấu hình ${CLI_KEY}=${CLI_VALUE}" "update_env_file '${CLI_KEY}' '${CLI_VALUE}'" false
+      echo -e "${GREEN}[+] Đã lưu cấu hình. Để áp dụng, hãy chạy: n8n-host --config-set --key RESTART --value NOW (hoặc Restart thủ công)${NC}"
+
+      if [[ "$CLI_KEY" == "RESTART" ]]; then
+         run_silent_command "Đang tải lại Server với Cấu hình Mới!" "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} up -d" false
+         echo -e "${GREEN}[+] Hệ thống đã được Recreate với Cấu hình môi trường mới!${NC}"
+      fi
+      return 0
     fi
 
     # Lấy thông tin hiện tại
@@ -2043,46 +2139,71 @@ configure_environment() {
 # --- System & Security Audit ---
 
 system_audit() {
-  clear
-  echo -e "${CYAN}=== SYSTEM & SECURITY AUDIT ===${NC}"
-  echo -e "${YELLOW}[*] Đang tiến hành quét lỗ hổng và kiểm tra tài nguyên hệ thống...${NC}\n"
+  local is_json="false"
+  if [[ "$NON_INTERACTIVE" == "true" && "$CLI_ACTION" == "audit-json" ]]; then
+    is_json="true"
+  fi
+
+  if [[ "$is_json" == "false" ]]; then
+    clear
+    echo -e "${CYAN}=== SYSTEM & SECURITY AUDIT ===${NC}"
+    echo -e "${YELLOW}[*] Đang tiến hành quét lỗ hổng và kiểm tra tài nguyên hệ thống...${NC}\n"
+  fi
 
   local issue_count=0
 
   # 1. Kiểm tra Permission file .env
-  echo -n -e "1. Kiểm tra cấu hình bảo mật (.env): "
+  local env_status="unknown"
+  if [[ "$is_json" == "false" ]]; then
+    echo -n -e "1. Kiểm tra cấu hình bảo mật (.env): "
+  fi
   if [ -f "${ENV_FILE}" ]; then
     local env_perms
     env_perms=$(stat -c "%a" "${ENV_FILE}")
     if [[ "$env_perms" == "777" || "$env_perms" == "666" || "$env_perms" == "644" ]]; then
-      echo -e "${RED}CẢNH BÁO [Mức độ: Cao]${NC}"
-      echo -e "   -> File ${ENV_FILE} đang có quyền ${env_perms} (không an toàn)."
-      echo -e "   -> Đang tự động sửa lỗi (chmod 600)..."
+      if [[ "$is_json" == "false" ]]; then
+        echo -e "${RED}CẢNH BÁO [Mức độ: Cao]${NC}"
+        echo -e "   -> File ${ENV_FILE} đang có quyền ${env_perms} (không an toàn)."
+        echo -e "   -> Đang tự động sửa lỗi (chmod 600)..."
+      fi
       sudo chmod 600 "${ENV_FILE}"
-      echo -e "   ${GREEN}[+] Đã fix quyền file .env thành 600.${NC}"
+      if [[ "$is_json" == "false" ]]; then
+        echo -e "   ${GREEN}[+] Đã fix quyền file .env thành 600.${NC}"
+      fi
+      env_status="fixed_to_600"
       issue_count=$((issue_count+1))
     else
-      echo -e "${GREEN}An toàn (${env_perms})${NC}"
+      if [[ "$is_json" == "false" ]]; then echo -e "${GREEN}An toàn (${env_perms})${NC}"; fi
+      env_status="safe_${env_perms}"
     fi
   else
-    echo -e "${YELLOW}Bỏ qua (Chưa cài đặt N8N)${NC}"
+    if [[ "$is_json" == "false" ]]; then echo -e "${YELLOW}Bỏ qua (Chưa cài đặt N8N)${NC}"; fi
+    env_status="not_installed"
   fi
 
   # 2. Kiểm tra Dung lượng ổ cứng (Disk Space)
-  echo -n -e "2. Kiểm tra dung lượng ổ đĩa phân vùng gốc (/): "
+  if [[ "$is_json" == "false" ]]; then echo -n -e "2. Kiểm tra dung lượng ổ đĩa phân vùng gốc (/): "; fi
   local disk_usage
-  disk_usage=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
+  disk_usage=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//' | tr -dc '0-9')
+  # Đảm bảo rỗng thì = 0
+  if [[ -z "$disk_usage" ]]; then disk_usage=0; fi
+  local disk_status="ok"
   if [ "$disk_usage" -ge 80 ]; then
-    echo -e "${RED}CẢNH BÁO [Mức độ: Cao]${NC}"
-    echo -e "   -> Ổ đĩa đã sử dụng ${disk_usage}%. Nếu đạt 100%, Database PostgreSQL sẽ Crash!"
-    echo -e "   -> Vui lòng dùng tính năng [16] Dọn rác máy chủ hoặc xóa bớt file thừa."
+    if [[ "$is_json" == "false" ]]; then
+      echo -e "${RED}CẢNH BÁO [Mức độ: Cao]${NC}"
+      echo -e "   -> Ổ đĩa đã sử dụng ${disk_usage}%. Nếu đạt 100%, Database PostgreSQL sẽ Crash!"
+      echo -e "   -> Vui lòng dùng tính năng [16] Dọn rác máy chủ hoặc xóa bớt file thừa."
+    fi
+    disk_status="warning_high"
     issue_count=$((issue_count+1))
   else
-    echo -e "${GREEN}Tốt (${disk_usage}%)${NC}"
+    if [[ "$is_json" == "false" ]]; then echo -e "${GREEN}Tốt (${disk_usage}%)${NC}"; fi
   fi
 
   # 3. Kiểm tra Thời hạn SSL
-  echo -n -e "3. Kiểm tra chứng chỉ SSL/HTTPS: "
+  local ssl_status="unknown"
+  local ssl_days_left="-1"
+  if [[ "$is_json" == "false" ]]; then echo -n -e "3. Kiểm tra chứng chỉ SSL/HTTPS: "; fi
   if [ -f "${ENV_FILE}" ]; then
     local domain_name
     domain_name=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
@@ -2095,25 +2216,47 @@ system_audit() {
         local current_epoch=$(date +%s)
         if [[ -n "$expiry_epoch" ]]; then
           local days_left=$(( (expiry_epoch - current_epoch) / 86400 ))
+          ssl_days_left=$days_left
           if [ "$days_left" -lt 15 ]; then
-             echo -e "${RED}CẢNH BÁO [Mức độ: Thấp]${NC}"
-             echo -e "   -> SSL cho ${domain_name} sẽ hết hạn trong ${days_left} ngày tới (${expiry_date})."
-             echo -e "   -> Vui lòng gia hạn Let's Encrypt hoặc Cloudflare."
+             if [[ "$is_json" == "false" ]]; then
+               echo -e "${RED}CẢNH BÁO [Mức độ: Thấp]${NC}"
+               echo -e "   -> SSL cho ${domain_name} sẽ hết hạn trong ${days_left} ngày tới (${expiry_date})."
+               echo -e "   -> Vui lòng gia hạn Let's Encrypt hoặc Cloudflare."
+             fi
+             ssl_status="warning_expiring"
              issue_count=$((issue_count+1))
           else
-             echo -e "${GREEN}An toàn (Cấp cho ${domain_name}, còn ${days_left} ngày)${NC}"
+             if [[ "$is_json" == "false" ]]; then echo -e "${GREEN}An toàn (Cấp cho ${domain_name}, còn ${days_left} ngày)${NC}"; fi
+             ssl_status="safe"
           fi
         else
-          echo -e "${YELLOW}Không thể tính toán (${expiry_date})${NC}"
+          if [[ "$is_json" == "false" ]]; then echo -e "${YELLOW}Không thể tính toán (${expiry_date})${NC}"; fi
+          ssl_status="error_parsing_date"
         fi
       else
-        echo -e "${YELLOW}Không lấy được (Trang web có bật HTTPS không?)${NC}"
+        if [[ "$is_json" == "false" ]]; then echo -e "${YELLOW}Không lấy được (Trang web có bật HTTPS không?)${NC}"; fi
+        ssl_status="error_fetching"
       fi
     else
-      echo -e "${YELLOW}Bỏ qua (Chưa có tên miền)${NC}"
+      if [[ "$is_json" == "false" ]]; then echo -e "${YELLOW}Bỏ qua (Chưa có tên miền)${NC}"; fi
+      ssl_status="no_domain"
     fi
   else
-    echo -e "${YELLOW}Bỏ qua (Chưa cài đặt N8N)${NC}"
+    if [[ "$is_json" == "false" ]]; then echo -e "${YELLOW}Bỏ qua (Chưa cài đặt N8N)${NC}"; fi
+    ssl_status="not_installed"
+  fi
+
+  if [[ "$is_json" == "true" ]]; then
+    # In ra dạng JSON cơ bản thông qua jq nếu có, hoặc dùng echo
+    echo "{"
+    echo "  \"issueCount\": ${issue_count},"
+    echo "  \"envFileStatus\": \"${env_status}\","
+    echo "  \"diskUsagePercent\": ${disk_usage},"
+    echo "  \"diskStatus\": \"${disk_status}\","
+    echo "  \"sslStatus\": \"${ssl_status}\","
+    echo "  \"sslDaysLeft\": ${ssl_days_left}"
+    echo "}"
+    return 0
   fi
 
   echo -e "\n--------------------------------------------------------"
@@ -2123,8 +2266,10 @@ system_audit() {
     echo -e "${YELLOW}[!] Phát hiện ${issue_count} rủi ro. Vui lòng kiểm tra lại theo hướng dẫn bên trên.${NC}"
   fi
   
-  echo ""
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
 }
 
 # ---- src/lib/features/self_update.sh ----
@@ -2176,27 +2321,29 @@ open_marketplace() {
     # Định nghĩa danh sách các mẫu (id|tên|link json)
     # Tương lai có thể cào tự động bằng API Github, nhưng fix cứng mảng sẽ an toàn và nhanh hơn cho Bash Script
     local templates=(
-      "1|Luồng Telegram Bot gửi tin nhắn mặc định|telegram-bot.json"
-      "2|Luồng báo cáo Doanh Thu qua Google Sheet|google-sheet-report.json"
-      "3|Luồng Đồng bộ Lead từ Facebook Ads về CRM|fb-lead-crm.json"
-      "4|Luồng Auto-reply Email bằng OpenAI|email-openai-reply.json"
+      "1|Luồng import workflow credential|import-workflow-credential.json"
     )
 
-    # Hiển thị Menu
-    for item in "${templates[@]}"; do
-      local id=$(echo "$item" | cut -d'|' -f1)
-      local name=$(echo "$item" | cut -d'|' -f2)
-      printf " [%-2s] %s\n" "$id" "$name"
-    done
+    local choice
+    if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_ID" ]]; then
+      choice="$CLI_ID"
+    else
+      # Hiển thị Menu
+      for item in "${templates[@]}"; do
+        local id=$(echo "$item" | cut -d'|' -f1)
+        local name=$(echo "$item" | cut -d'|' -f2)
+        printf " [%-2s] %s\n" "$id" "$name"
+      done
 
-    echo "--------------------------------------------------------"
-    echo " [0]  Quay lại Menu Chính"
-    echo ""
-    
-    read -p "Chọn Workflow bạn muốn cài đặt (0-${#templates[@]}): " choice
-    
-    if [ "$choice" -eq 0 ] 2>/dev/null; then
-      return 0
+      echo "--------------------------------------------------------"
+      echo " [0]  Quay lại Menu Chính"
+      echo ""
+      
+      read -p "Chọn Workflow bạn muốn cài đặt (0-${#templates[@]}): " choice
+      
+      if [ "$choice" -eq 0 ] 2>/dev/null; then
+        return 0
+      fi
     fi
     
     # Tìm kiếm choice trong danh sách
@@ -2213,17 +2360,21 @@ open_marketplace() {
     done
     
     if [[ -z "$selected_name" ]]; then
-      echo -e "${RED}[!] Lựa chọn không hợp lệ.${NC}"
+      echo -e "${RED}[!] Lựa chọn không hợp lệ (ID: $choice).${NC}"
+      if [[ "$NON_INTERACTIVE" == "true" ]]; then return 1; fi
       sleep 1
       continue
     fi
     
     echo -e "\n${YELLOW}[*] Bạn đã chọn: ${CYAN}${selected_name}${NC}"
-    read -p "Phiên bản này sẽ được tải xuống và Import trực tiếp vào N8N. Tiếp tục? (y/n): " confirm
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-      echo "Đã hủy."
-      sleep 1
-      continue
+    
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+      read -p "Phiên bản này sẽ được tải xuống và Import trực tiếp vào N8N. Tiếp tục? (y/n): " confirm
+      if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo "Đã hủy."
+        sleep 1
+        continue
+      fi
     fi
     
     local BASE_URL="https://raw.githubusercontent.com/NCHQ02/n8n-script-2026/main/templates"
@@ -2269,8 +2420,12 @@ open_marketplace() {
       sudo rm -f "$TEMP_JSON"
     fi
     
-    echo ""
-    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại MarketPlace..."
+    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+      return 0
+    else
+      echo ""
+      read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại MarketPlace..."
+    fi
   done
 }
 
@@ -2290,11 +2445,27 @@ uninstall() {
 }
 
 show_help() {
-    echo "N8N Cloud Manager - Công cụ quản lý N8N trên CloudFly"
-    echo "Cách sử dụng: n8n-host [tuỳ chọn]"
-    echo "Tuỳ chọn:"
-    echo "  --help      Hiển thị thông tin trợ giúp này"
-    echo "  --uninstall Gỡ bỏ n8n-host khỏi hệ thống"
+    echo "  --help              Hiển thị thông tin trợ giúp này"
+    echo "  --install           Cài đặt N8N không cần tương tác (kết hợp --domain, --email)"
+    echo "  --domain <str>      Truyền tên miền ứng dụng"
+    echo "  --email <str>       Truyền email để đăng ký SSL HOẶC user N8N"
+    echo "  --backup            Chạy Siêu Backup toàn hệ thống"
+    echo "  --backup-cron       Chạy Backup dạng Cronjob (giữ lại 7 file)"
+    echo "  --prune-cache       Chạy Dọn rác máy chủ (Docker Prune)"
+    echo "  --disable-2fa       Tắt MFA cho một user (kết hợp --email)"
+    echo "  --reset-owner       Reset tài khoản Owner N8N"
+    echo "  --export            Export dữ liệu workflow/credentials (kết hợp --path)"
+    echo "  --import            Import dữ liệu workflow/credentials (kết hợp --file)"
+    echo "  --restore           Phục hồi toàn bộ server từ file nén (kết hợp --file)"
+    echo "  --install-template  Cài template mẫu từ Marketplace (kết hợp --id)"
+    echo "  --audit-json        Quét hệ thống và xuất kết quả ra định dạng JSON"
+    echo "  --config-set        Set cấu hình môi trường .env (kết hợp --key, --value)"
+    echo "  --path <str>        Truyền đường dẫn thư mục"
+    echo "  --file <str>        Truyền đường dẫn tập tin"
+    echo "  --id <str>          Truyền ID (cho Marketplace)"
+    echo "  --key <str>         Truyền tên biến môi trường (Ví dụ: GENERIC_TIMEZONE)"
+    echo "  --value <str>       Truyền giá trị biến môi trường (Ví dụ: Asia/Ho_Chi_Minh)"
+    echo "  --uninstall         Gỡ bỏ n8n-host khỏi hệ thống"
     exit 0
 }
 
@@ -2302,14 +2473,61 @@ if [[ "$1" == "--help" ]]; then
     show_help
 fi
 
-if [[ "$1" == "--uninstall" ]]; then
-    uninstall
+export NON_INTERACTIVE="false"
+export CLI_DOMAIN=""
+export CLI_EMAIL=""
+export CLI_PATH=""
+export CLI_FILE=""
+export CLI_ID=""
+export CLI_KEY=""
+export CLI_VALUE=""
+CLI_ACTION=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --install) CLI_ACTION="install"; shift ;;
+    --domain) shift; export CLI_DOMAIN="$1"; shift ;;
+    --email) shift; export CLI_EMAIL="$1"; shift ;;
+    --path) shift; export CLI_PATH="$1"; shift ;;
+    --file) shift; export CLI_FILE="$1"; shift ;;
+    --id) shift; export CLI_ID="$1"; shift ;;
+    --key) shift; export CLI_KEY="$1"; shift ;;
+    --value) shift; export CLI_VALUE="$1"; shift ;;
+    --backup) CLI_ACTION="backup"; shift ;;
+    --prune-cache) CLI_ACTION="prune-cache"; shift ;;
+    --disable-2fa) CLI_ACTION="disable-2fa"; shift ;;
+    --reset-owner) CLI_ACTION="reset-owner"; shift ;;
+    --export) CLI_ACTION="export"; shift ;;
+    --import) CLI_ACTION="import"; shift ;;
+    --restore) CLI_ACTION="restore"; shift ;;
+    --install-template) CLI_ACTION="install-template"; shift ;;
+    --audit-json) CLI_ACTION="audit-json"; shift ;;
+    --config-set) CLI_ACTION="config-set"; shift ;;
+    --uninstall) uninstall; exit 0 ;;
+    --help) show_help ;;
+    --backup-cron) run_auto_backup; exit 0 ;;
+    *) echo -e "${RED}[!] Tuỳ chọn không hợp lệ: $1${NC}"; show_help ;;
+  esac
+done
+
+if [[ -n "$CLI_ACTION" ]]; then
+  export NON_INTERACTIVE="true"
+  case "$CLI_ACTION" in
+    install) install ;;
+    backup) run_auto_backup; echo -e "${GREEN}[+] Đã chạy xong Backup qua CLI!${NC}" ;;
+    prune-cache) docker_prune ;;
+    disable-2fa) disable_mfa ;;
+    reset-owner) reset_user_login ;;
+    export) export_all_data ;;
+    import) import_data ;;
+    restore) restore_server ;;
+    install-template) open_marketplace ;;
+    audit-json) system_audit ;;
+    config-set) configure_environment ;;
+  esac
+  exit 0
 fi
 
-if [[ "$1" == "--backup-cron" ]]; then
-    run_auto_backup
-    exit 0
-fi
 
 # --- Hiển thị Menu Chính ---
 show_menu() {

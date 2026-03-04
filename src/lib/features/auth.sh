@@ -11,25 +11,31 @@ disable_mfa() {
     fi
 
     local user_email
-    echo -n -e "Nhập địa chỉ email của tài khoản N8N cần tắt 2FA: "
-    read -r user_email
+    if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_EMAIL" ]]; then
+        user_email="$CLI_EMAIL"
+    else
+        echo -n -e "Nhập địa chỉ email của tài khoản N8N cần tắt 2FA: "
+        read -r user_email
 
-    if [[ -z "$user_email" ]]; then
-        echo -e "${RED}Email không được để trống. Huỷ bỏ thao tác.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ -z "$user_email" ]]; then
+            echo -e "${RED}Email không được để trống. Huỷ bỏ thao tác.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
-    echo -e "\n${YELLOW}Bạn có chắc chắn muốn tắt 2FA cho tài khoản với email ${GREEN}${user_email}${NC} không?${NC}"
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "Nhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Bạn có chắc chắn muốn tắt 2FA cho tài khoản với email ${GREEN}${user_email}${NC} không?${NC}"
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "Nhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thao tác tắt 2FA.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thao tác tắt 2FA.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
     trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
@@ -61,8 +67,10 @@ disable_mfa() {
     sudo rm -f "${disable_mfa_log}"
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # --- Hàm Đặt lại thông tin đăng nhập ---
@@ -77,17 +85,19 @@ reset_user_login() {
         return 0
     fi
 
-    echo -e "\n${YELLOW}CẢNH BÁO: Hành động này sẽ reset toàn bộ thông tin tài khoản owner (người dùng chủ sở hữu).${NC}"
-    echo -e "${YELLOW}Sau khi reset, bạn sẽ cần phải tạo lại tài khoản owner khi truy cập N8N lần đầu.${NC}"
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}CẢNH BÁO: Hành động này sẽ reset toàn bộ thông tin tài khoản owner (người dùng chủ sở hữu).${NC}"
+        echo -e "${YELLOW}Sau khi reset, bạn sẽ cần phải tạo lại tài khoản owner khi truy cập N8N lần đầu.${NC}"
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thao tác đặt lại thông tin đăng nhập.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thao tác đặt lại thông tin đăng nhập.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
     trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
@@ -133,6 +143,8 @@ reset_user_login() {
     sudo rm -f "${reset_log}"
 
     trap - ERR SIGINT SIGTERM
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }

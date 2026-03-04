@@ -14,11 +14,27 @@ uninstall() {
 }
 
 show_help() {
-    echo "N8N Cloud Manager - Công cụ quản lý N8N trên CloudFly"
-    echo "Cách sử dụng: n8n-host [tuỳ chọn]"
-    echo "Tuỳ chọn:"
-    echo "  --help      Hiển thị thông tin trợ giúp này"
-    echo "  --uninstall Gỡ bỏ n8n-host khỏi hệ thống"
+    echo "  --help              Hiển thị thông tin trợ giúp này"
+    echo "  --install           Cài đặt N8N không cần tương tác (kết hợp --domain, --email)"
+    echo "  --domain <str>      Truyền tên miền ứng dụng"
+    echo "  --email <str>       Truyền email để đăng ký SSL HOẶC user N8N"
+    echo "  --backup            Chạy Siêu Backup toàn hệ thống"
+    echo "  --backup-cron       Chạy Backup dạng Cronjob (giữ lại 7 file)"
+    echo "  --prune-cache       Chạy Dọn rác máy chủ (Docker Prune)"
+    echo "  --disable-2fa       Tắt MFA cho một user (kết hợp --email)"
+    echo "  --reset-owner       Reset tài khoản Owner N8N"
+    echo "  --export            Export dữ liệu workflow/credentials (kết hợp --path)"
+    echo "  --import            Import dữ liệu workflow/credentials (kết hợp --file)"
+    echo "  --restore           Phục hồi toàn bộ server từ file nén (kết hợp --file)"
+    echo "  --install-template  Cài template mẫu từ Marketplace (kết hợp --id)"
+    echo "  --audit-json        Quét hệ thống và xuất kết quả ra định dạng JSON"
+    echo "  --config-set        Set cấu hình môi trường .env (kết hợp --key, --value)"
+    echo "  --path <str>        Truyền đường dẫn thư mục"
+    echo "  --file <str>        Truyền đường dẫn tập tin"
+    echo "  --id <str>          Truyền ID (cho Marketplace)"
+    echo "  --key <str>         Truyền tên biến môi trường (Ví dụ: GENERIC_TIMEZONE)"
+    echo "  --value <str>       Truyền giá trị biến môi trường (Ví dụ: Asia/Ho_Chi_Minh)"
+    echo "  --uninstall         Gỡ bỏ n8n-host khỏi hệ thống"
     exit 0
 }
 
@@ -26,14 +42,61 @@ if [[ "$1" == "--help" ]]; then
     show_help
 fi
 
-if [[ "$1" == "--uninstall" ]]; then
-    uninstall
+export NON_INTERACTIVE="false"
+export CLI_DOMAIN=""
+export CLI_EMAIL=""
+export CLI_PATH=""
+export CLI_FILE=""
+export CLI_ID=""
+export CLI_KEY=""
+export CLI_VALUE=""
+CLI_ACTION=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --install) CLI_ACTION="install"; shift ;;
+    --domain) shift; export CLI_DOMAIN="$1"; shift ;;
+    --email) shift; export CLI_EMAIL="$1"; shift ;;
+    --path) shift; export CLI_PATH="$1"; shift ;;
+    --file) shift; export CLI_FILE="$1"; shift ;;
+    --id) shift; export CLI_ID="$1"; shift ;;
+    --key) shift; export CLI_KEY="$1"; shift ;;
+    --value) shift; export CLI_VALUE="$1"; shift ;;
+    --backup) CLI_ACTION="backup"; shift ;;
+    --prune-cache) CLI_ACTION="prune-cache"; shift ;;
+    --disable-2fa) CLI_ACTION="disable-2fa"; shift ;;
+    --reset-owner) CLI_ACTION="reset-owner"; shift ;;
+    --export) CLI_ACTION="export"; shift ;;
+    --import) CLI_ACTION="import"; shift ;;
+    --restore) CLI_ACTION="restore"; shift ;;
+    --install-template) CLI_ACTION="install-template"; shift ;;
+    --audit-json) CLI_ACTION="audit-json"; shift ;;
+    --config-set) CLI_ACTION="config-set"; shift ;;
+    --uninstall) uninstall; exit 0 ;;
+    --help) show_help ;;
+    --backup-cron) run_auto_backup; exit 0 ;;
+    *) echo -e "${RED}[!] Tuỳ chọn không hợp lệ: $1${NC}"; show_help ;;
+  esac
+done
+
+if [[ -n "$CLI_ACTION" ]]; then
+  export NON_INTERACTIVE="true"
+  case "$CLI_ACTION" in
+    install) install ;;
+    backup) run_auto_backup; echo -e "${GREEN}[+] Đã chạy xong Backup qua CLI!${NC}" ;;
+    prune-cache) docker_prune ;;
+    disable-2fa) disable_mfa ;;
+    reset-owner) reset_user_login ;;
+    export) export_all_data ;;
+    import) import_data ;;
+    restore) restore_server ;;
+    install-template) open_marketplace ;;
+    audit-json) system_audit ;;
+    config-set) configure_environment ;;
+  esac
+  exit 0
 fi
 
-if [[ "$1" == "--backup-cron" ]]; then
-    run_auto_backup
-    exit 0
-fi
 
 # --- Hiển thị Menu Chính ---
 show_menu() {

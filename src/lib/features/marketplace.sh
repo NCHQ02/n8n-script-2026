@@ -14,21 +14,26 @@ open_marketplace() {
       "1|Luồng import workflow credential|import-workflow-credential.json"
     )
 
-    # Hiển thị Menu
-    for item in "${templates[@]}"; do
-      local id=$(echo "$item" | cut -d'|' -f1)
-      local name=$(echo "$item" | cut -d'|' -f2)
-      printf " [%-2s] %s\n" "$id" "$name"
-    done
+    local choice
+    if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_ID" ]]; then
+      choice="$CLI_ID"
+    else
+      # Hiển thị Menu
+      for item in "${templates[@]}"; do
+        local id=$(echo "$item" | cut -d'|' -f1)
+        local name=$(echo "$item" | cut -d'|' -f2)
+        printf " [%-2s] %s\n" "$id" "$name"
+      done
 
-    echo "--------------------------------------------------------"
-    echo " [0]  Quay lại Menu Chính"
-    echo ""
-    
-    read -p "Chọn Workflow bạn muốn cài đặt (0-${#templates[@]}): " choice
-    
-    if [ "$choice" -eq 0 ] 2>/dev/null; then
-      return 0
+      echo "--------------------------------------------------------"
+      echo " [0]  Quay lại Menu Chính"
+      echo ""
+      
+      read -p "Chọn Workflow bạn muốn cài đặt (0-${#templates[@]}): " choice
+      
+      if [ "$choice" -eq 0 ] 2>/dev/null; then
+        return 0
+      fi
     fi
     
     # Tìm kiếm choice trong danh sách
@@ -45,17 +50,21 @@ open_marketplace() {
     done
     
     if [[ -z "$selected_name" ]]; then
-      echo -e "${RED}[!] Lựa chọn không hợp lệ.${NC}"
+      echo -e "${RED}[!] Lựa chọn không hợp lệ (ID: $choice).${NC}"
+      if [[ "$NON_INTERACTIVE" == "true" ]]; then return 1; fi
       sleep 1
       continue
     fi
     
     echo -e "\n${YELLOW}[*] Bạn đã chọn: ${CYAN}${selected_name}${NC}"
-    read -p "Phiên bản này sẽ được tải xuống và Import trực tiếp vào N8N. Tiếp tục? (y/n): " confirm
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-      echo "Đã hủy."
-      sleep 1
-      continue
+    
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+      read -p "Phiên bản này sẽ được tải xuống và Import trực tiếp vào N8N. Tiếp tục? (y/n): " confirm
+      if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo "Đã hủy."
+        sleep 1
+        continue
+      fi
     fi
     
     local BASE_URL="https://raw.githubusercontent.com/NCHQ02/n8n-script-2026/main/templates"
@@ -101,7 +110,11 @@ open_marketplace() {
       sudo rm -f "$TEMP_JSON"
     fi
     
-    echo ""
-    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại MarketPlace..."
+    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+      return 0
+    else
+      echo ""
+      read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại MarketPlace..."
+    fi
   done
 }
