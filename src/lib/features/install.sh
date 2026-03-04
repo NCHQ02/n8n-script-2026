@@ -59,6 +59,7 @@ install() {
   fi
   update_env_file "LETSENCRYPT_EMAIL" "$letsencrypt_email"
 
+  prompt_database_configuration
   generate_credentials
   create_docker_compose_config
   start_docker_containers

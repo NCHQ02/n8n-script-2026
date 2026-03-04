@@ -332,6 +332,68 @@ get_domain_and_dns_check_reusable() {
   return 0
 }
 
+prompt_database_configuration() {
+  local db_type="local"
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_EXTERNAL_DB" ]]; then
+    db_type="external"
+  elif [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo -e "\n${CYAN}--- Cấu hình Database & Redis ---${NC}"
+    echo -e "1) Cài đặt Database Local (Tự động cấp phát Postgres & Redis qua Docker)"
+    echo -e "2) Sử dụng Database External (Supabase, AWS RDS, Redis Cloud...)"
+    local db_choice
+    read -p "Nhập lựa chọn của bạn (1-2) [Mặc định: 1]: " db_choice
+    if [[ "$db_choice" == "2" ]]; then
+      db_type="external"
+    fi
+  fi
+
+  update_env_file "DB_SETUP_TYPE" "$db_type"
+
+  if [[ "$db_type" == "external" ]]; then
+    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+      update_env_file "POSTGRES_HOST" "${CLI_DB_HOST:-}"
+      update_env_file "POSTGRES_PORT" "${CLI_DB_PORT:-5432}"
+      update_env_file "POSTGRES_DB" "${CLI_DB_NAME:-}"
+      update_env_file "POSTGRES_USER" "${CLI_DB_USER:-}"
+      update_env_file "POSTGRES_PASSWORD" "${CLI_DB_PASSWORD:-}"
+      update_env_file "REDIS_HOST" "${CLI_REDIS_HOST:-}"
+      update_env_file "REDIS_PORT" "${CLI_REDIS_PORT:-6379}"
+      update_env_file "REDIS_PASSWORD" "${CLI_REDIS_PASSWORD:-}"
+    else
+      echo -e "\n${CYAN}[1/2] Cấu hình PostgreSQL External${NC}"
+      local pg_host pg_port pg_db pg_user pg_pass
+      read -p "Host (VD: db.supabase.co): " pg_host
+      read -p "Port [5432]: " pg_port
+      pg_port=${pg_port:-5432}
+      read -p "Database Name: " pg_db
+      read -p "User: " pg_user
+      read -p "Password: " -s pg_pass
+      echo ""
+
+      echo -e "\n${CYAN}[2/2] Cấu hình Redis External (Tuỳ chọn)${NC}"
+      local redis_host redis_port redis_pass
+      read -p "Host (Để rỗng nếu không dùng Redis): " redis_host
+      if [[ -n "$redis_host" ]]; then
+        read -p "Port [6379]: " redis_port
+        redis_port=${redis_port:-6379}
+        read -p "Password: " -s redis_pass
+        echo ""
+      fi
+
+      update_env_file "POSTGRES_HOST" "$pg_host"
+      update_env_file "POSTGRES_PORT" "$pg_port"
+      update_env_file "POSTGRES_DB" "$pg_db"
+      update_env_file "POSTGRES_USER" "$pg_user"
+      update_env_file "POSTGRES_PASSWORD" "$pg_pass"
+      if [[ -n "$redis_host" ]]; then
+        update_env_file "REDIS_HOST" "$redis_host"
+        update_env_file "REDIS_PORT" "$redis_port"
+        update_env_file "REDIS_PASSWORD" "$redis_pass"
+      fi
+    fi
+  fi
+}
+
 generate_credentials() {
   start_spinner "Tạo thông tin đăng nhập và cấu hình..."
   update_env_file "N8N_ENCRYPTION_KEY" "$(generate_random_string 64)"
@@ -340,11 +402,18 @@ generate_credentials() {
   system_timezone=$(timedatectl show --property=Timezone --value 2>/dev/null)
   update_env_file "GENERIC_TIMEZONE" "${system_timezone:-Asia/Ho_Chi_Minh}"
 
-  update_env_file "POSTGRES_DB" "n8n_db_$(generate_random_string 6 | tr '[:upper:]' '[:lower:]')"
-  update_env_file "POSTGRES_USER" "n8n_user_$(generate_random_string 8 | tr '[:upper:]' '[:lower:]')"
-  update_env_file "POSTGRES_PASSWORD" "$(generate_random_string 32)"
+  local db_setup_type
+  if [ -f "${ENV_FILE}" ]; then
+    db_setup_type=$(grep "^DB_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
+  fi
 
-  update_env_file "REDIS_PASSWORD" "$(generate_random_string 32)"
+  if [[ "$db_setup_type" != "external" ]]; then
+    update_env_file "POSTGRES_DB" "n8n_db_$(generate_random_string 6 | tr '[:upper:]' '[:lower:]')"
+    update_env_file "POSTGRES_USER" "n8n_user_$(generate_random_string 8 | tr '[:upper:]' '[:lower:]')"
+    update_env_file "POSTGRES_PASSWORD" "$(generate_random_string 32)"
+
+    update_env_file "REDIS_PASSWORD" "$(generate_random_string 32)"
+  fi
 
   stop_spinner
   echo -e "${GREEN}Thông tin đăng nhập và cấu hình đã được lưu vào ${ENV_FILE}.${NC}"
@@ -353,7 +422,7 @@ generate_credentials() {
 
 create_docker_compose_config() {
   start_spinner "Tạo file docker-compose.yml..."
-  local n8n_encryption_key_val postgres_user_val postgres_password_val postgres_db_val redis_password_val
+  local n8n_encryption_key_val postgres_user_val postgres_password_val postgres_db_val postgres_host_val postgres_port_val redis_password_val redis_host_val redis_port_val db_setup_type_val
   local domain_name_val generic_timezone_val
 
   if [ -f "${ENV_FILE}" ]; then
@@ -361,15 +430,32 @@ create_docker_compose_config() {
     postgres_user_val=$(grep "^POSTGRES_USER=" "${ENV_FILE}" | cut -d'=' -f2)
     postgres_password_val=$(grep "^POSTGRES_PASSWORD=" "${ENV_FILE}" | cut -d'=' -f2)
     postgres_db_val=$(grep "^POSTGRES_DB=" "${ENV_FILE}" | cut -d'=' -f2)
+    postgres_host_val=$(grep "^POSTGRES_HOST=" "${ENV_FILE}" | cut -d'=' -f2)
+    postgres_port_val=$(grep "^POSTGRES_PORT=" "${ENV_FILE}" | cut -d'=' -f2)
     redis_password_val=$(grep "^REDIS_PASSWORD=" "${ENV_FILE}" | cut -d'=' -f2)
+    redis_host_val=$(grep "^REDIS_HOST=" "${ENV_FILE}" | cut -d'=' -f2)
+    redis_port_val=$(grep "^REDIS_PORT=" "${ENV_FILE}" | cut -d'=' -f2)
     domain_name_val=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
     generic_timezone_val=$(grep "^GENERIC_TIMEZONE=" "${ENV_FILE}" | cut -d'=' -f2)
+    db_setup_type_val=$(grep "^DB_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
   fi
 
-  sudo bash -c "cat > ${DOCKER_COMPOSE_FILE}" <<EOF
-# version: '3.8'
+  local n8n_db_host="postgres"
+  local n8n_db_port="5432"
 
-services:
+  if [[ "$db_setup_type_val" == "external" ]]; then
+    n8n_db_host="${postgres_host_val}"
+    n8n_db_port="${postgres_port_val}"
+  fi
+
+  local services_postgres=""
+  local services_redis=""
+  local volumes_postgres=""
+  local volumes_redis=""
+  local n8n_depends_on=""
+
+  if [[ "$db_setup_type_val" != "external" ]]; then
+services_postgres="
   postgres:
     image: postgres:15-alpine
     restart: always
@@ -381,26 +467,51 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \${POSTGRES_USER:-${postgres_user_val}} -d \${POSTGRES_DB:-${postgres_db_val}}"]
+      test: [\"CMD-SHELL\", \"pg_isready -U \${POSTGRES_USER:-${postgres_user_val}} -d \${POSTGRES_DB:-${postgres_db_val}}\"]
       interval: 10s
       timeout: 5s
       retries: 5
-
+    logging:
+      driver: \"json-file\"
+      options:
+        max-size: \"10m\"
+        max-file: \"3\"
+"
+services_redis="
   redis:
     image: redis:7-alpine
     restart: always
     container_name: n8n_redis
     command: redis-server --save 60 1 --loglevel warning --requirepass \${REDIS_PASSWORD:-${redis_password_val}}
     ports:
-      - "127.0.0.1:6379:6379"
+      - \"127.0.0.1:6379:6379\"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "\${REDIS_PASSWORD:-${redis_password_val}}", "ping"]
+      test: [\"CMD\", \"redis-cli\", \"-a\", \"\${REDIS_PASSWORD:-${redis_password_val}}\", \"ping\"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: \"json-file\"
+      options:
+        max-size: \"10m\"
+        max-file: \"3\"
+"
+volumes_postgres="  postgres_data:"
+volumes_redis="  redis_data:"
+n8n_depends_on="
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy"
+  fi
 
+  sudo bash -c "cat > ${DOCKER_COMPOSE_FILE}" <<EOF
+# version: '3.8'
+
+services:${services_postgres}${services_redis}
   ${N8N_SERVICE_NAME}:
     image: n8nio/n8n:latest
     restart: always
@@ -409,8 +520,8 @@ services:
       - "127.0.0.1:5678:5678"
     environment:
       - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=postgres
-      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_HOST=\${POSTGRES_HOST:-${n8n_db_host}}
+      - DB_POSTGRESDB_PORT=\${POSTGRES_PORT:-${n8n_db_port}}
       - DB_POSTGRESDB_DATABASE=\${POSTGRES_DB:-${postgres_db_val}}
       - DB_POSTGRESDB_USER=\${POSTGRES_USER:-${postgres_user_val}}
       - DB_POSTGRESDB_PASSWORD=\${POSTGRES_PASSWORD:-${postgres_password_val}}
@@ -425,16 +536,16 @@ services:
       - N8N_BASIC_AUTH_ACTIVE=false
       - N8N_RUNNERS_ENABLED=true
     volumes:
-      - n8n_data:/home/node/.n8n
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - n8n_data:/home/node/.n8n${n8n_depends_on}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
-  postgres_data:
-  redis_data:
+${volumes_postgres}
+${volumes_redis}
   n8n_data:
 EOF
   stop_spinner
@@ -514,7 +625,7 @@ EOF" "false" || return 1
 
   if ! sudo certbot certonly --webroot -w "${webroot_path}" -d "${domain_name}" \
         --agree-tos --email "${user_email}" --non-interactive --quiet \
-        --preferred-challenges http --force-renewal > /tmp/certbot_obtain.log 2>&1; then
+        --preferred-challenges http > /tmp/certbot_obtain.log 2>&1; then
     echo -e "${RED}Lấy chứng chỉ SSL thất bại.${NC}"
     echo -e "${YELLOW}Kiểm tra log Certbot tại /var/log/letsencrypt/ và /tmp/certbot_obtain.log.${NC}"
     return 1
@@ -707,6 +818,7 @@ install() {
   fi
   update_env_file "LETSENCRYPT_EMAIL" "$letsencrypt_email"
 
+  prompt_database_configuration
   generate_credentials
   create_docker_compose_config
   start_docker_containers
