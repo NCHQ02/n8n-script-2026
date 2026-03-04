@@ -1,24 +1,24 @@
-#!/bin/bash
+﻿#!/bin/bash
 
-# install.sh - Cài đặt công cụ N8N Host
+# install.sh — Cài đặt công cụ N8N Host lên hệ thống
 
 # --- Định nghĩa màu sắc và biến ---
-RED='\e[38;5;217m'      # pastel pink
-GREEN='\e[38;5;151m'    # pastel green
-YELLOW='\e[38;5;229m'   # pastel yellow
-CYAN='\e[38;5;159m'     # pastel blue
-NC='\e[0m'              # reset
+RED='\e[38;5;217m'      # hồng nhạt
+GREEN='\e[38;5;151m'    # xanh lá nhạt
+YELLOW='\e[38;5;229m'   # vàng nhạt
+CYAN='\e[38;5;159m'     # xanh dương nhạt
+NC='\e[0m'              # reset màu
+
 # !!! THAY ĐỔI URL NÀY THÀNH LINK TẢI SCRIPT CỦA BẠN !!!
-SCRIPT_URL="https://raw.githubusercontent.com/NCHQ02/n8n-panel/main/n8n-host.sh" # VI DU: Link raw GitHub
+SCRIPT_URL="https://raw.githubusercontent.com/NCHQ02/n8n-script-2026/main/dist/n8n-host.sh"
 
-SCRIPT_NAME="n8n-host" #path/to/script/name
-# Khuyến nghị dùng /usr/local/bin cho script tùy chỉnh
-INSTALL_DIR="/usr/local/bin"
+SCRIPT_NAME="n8n-host"
+INSTALL_DIR="/usr/local/bin"          # Khuyến nghị dùng /usr/local/bin cho script tùy chỉnh
 INSTALL_PATH="${INSTALL_DIR}/${SCRIPT_NAME}"
-TEMP_SCRIPT="/tmp/${SCRIPT_NAME}.sh.$$" 
-TEMPLATE_FILE_NAME="import-workflow-credentials.json" 
+TEMP_SCRIPT="/tmp/${SCRIPT_NAME}.sh.$$"           # File tạm với PID để tránh xung đột
+TEMPLATE_FILE_NAME="import-workflow-credentials.json"
 
-# --- Hàm kiểm tra quyền root ---
+# --- Kiểm tra quyền root ---
 check_root() {
   if [[ $EUID -ne 0 ]]; then
     echo -e "\n${RED}[!] Lỗi: Bạn cần chạy script cài đặt này với quyền root (sudo).${NC}\n"
@@ -26,7 +26,7 @@ check_root() {
   fi
 }
 
-# --- Hàm kiểm tra lệnh (curl hoặc wget) ---
+# --- Phát hiện công cụ tải file (curl hoặc wget) ---
 check_downloader() {
     if command -v curl &> /dev/null; then
         DOWNLOADER="curl"
@@ -39,22 +39,23 @@ check_downloader() {
     echo -e "${GREEN}[*] Sử dụng '$DOWNLOADER' để tải file.${NC}"
 }
 
-# --- Hàm tải script ---
+# --- Tải script về file tạm ---
 download_script() {
     echo -e "${YELLOW}[*] Đang tải script từ: ${SCRIPT_URL}${NC}"
+    local download_status
     if [[ "$DOWNLOADER" == "curl" ]]; then
-        # Tải file bằng curl, theo dõi redirect (-L), báo lỗi nếu fail (-f), im lặng (-s), output vào file tạm (-o)
+        # Tải file bằng curl: theo dõi redirect (-L), báo lỗi nếu fail (-f), im lặng (-s)
         curl -fsSL -o "$TEMP_SCRIPT" "$SCRIPT_URL"
-        local download_status=$?
+        download_status=$?
     else # wget
-        # Tải file bằng wget, output vào file tạm (-O), im lặng (-q)
+        # Tải file bằng wget: output vào file tạm (-O), im lặng (-q)
         wget -qO "$TEMP_SCRIPT" "$SCRIPT_URL"
-        local download_status=$?
+        download_status=$?
     fi
 
     if [[ $download_status -ne 0 ]]; then
         echo -e "${RED}[!] Lỗi: Tải script thất bại (kiểm tra URL hoặc kết nối mạng).${NC}"
-        rm -f "$TEMP_SCRIPT" # Xóa file tạm nếu có lỗi
+        rm -f "$TEMP_SCRIPT"
         exit 1
     fi
 
@@ -68,23 +69,17 @@ download_script() {
     echo -e "${GREEN}[+] Tải script thành công.${NC}"
 }
 
-# --- Hàm cài đặt ---
+# --- Cài đặt script và template ---
 install_script() {
     echo -e "${YELLOW}[*] Bắt đầu quá trình cài đặt...${NC}"
 
-    # 1. Kiểm tra quyền root
     check_root
-
-    # 2. Kiểm tra công cụ tải file
     check_downloader
-
-    # 3. Tải script vào file tạm
     download_script
 
-    # 4. Tạo thư mục cài đặt nếu chưa có
+    # Tạo thư mục cài đặt nếu chưa có
     if [[ ! -d "$INSTALL_DIR" ]]; then
         echo -e "${YELLOW}[*] Tạo thư mục cài đặt: ${INSTALL_DIR}${NC}"
-        # Sử dụng sudo vì tạo thư mục trong hệ thống
         if ! sudo mkdir -p "$INSTALL_DIR"; then
             echo -e "${RED}[!] Lỗi: Không thể tạo thư mục ${INSTALL_DIR}.${NC}"
             rm -f "$TEMP_SCRIPT"
@@ -92,25 +87,23 @@ install_script() {
         fi
     fi
 
-    # 5. Di chuyển script vào thư mục cài đặt
+    # Di chuyển script vào thư mục cài đặt
     echo -e "${YELLOW}[*] Di chuyển script đến: ${INSTALL_PATH}${NC}"
     if ! sudo mv "$TEMP_SCRIPT" "$INSTALL_PATH"; then
         echo -e "${RED}[!] Lỗi: Không thể di chuyển script đến ${INSTALL_PATH}.${NC}"
-        rm -f "$TEMP_SCRIPT" # Vẫn cố gắng xóa file tam
+        rm -f "$TEMP_SCRIPT"
         exit 1
     fi
 
-    # 6. Cấp quyền thực thi cho script
+    # Cấp quyền thực thi
     echo -e "${YELLOW}[*] Cấp quyền thực thi cho script...${NC}"
     if ! sudo chmod +x "$INSTALL_PATH"; then
         echo -e "${RED}[!] Lỗi: Không thể cấp quyền thực thi cho ${INSTALL_PATH}.${NC}"
-        # Co the can go bo file da copy neu khong cap quyen duoc? Tuy chon.
-        # sudo rm -f "$INSTALL_PATH"
         exit 1
     fi
 
-    # 7. Tạo thư mục n8n-templates ngang hàng với root và tải về file template
-    echo -e "${YELLOW}[*] Tạo thư mục n8n-templates...${NC}"
+    # Tải file template về /n8n-templates/
+    echo -e "${YELLOW}[*] Tạo thư mục /n8n-templates/...${NC}"
     if [[ ! -d "/n8n-templates" ]]; then
         sudo mkdir -p "/n8n-templates"
         if [[ $? -ne 0 ]]; then
@@ -118,17 +111,22 @@ install_script() {
             exit 1
         fi
     fi
-    echo -e "${YELLOW}[*] Tải về file template...${NC}"
 
-    curl -fsSL -o "/n8n-templates/${TEMPLATE_FILE_NAME}" "https://cloudfly.vn/download/n8n-host/templates/${TEMPLATE_FILE_NAME}"
+    echo -e "${YELLOW}[*] Tải về file template...${NC}"
+    local template_url="https://cloudfly.vn/download/n8n-host/templates/${TEMPLATE_FILE_NAME}"
+    if [[ "$DOWNLOADER" == "curl" ]]; then
+        curl -fsSL -o "/n8n-templates/${TEMPLATE_FILE_NAME}" "$template_url"
+    else
+        wget -qO "/n8n-templates/${TEMPLATE_FILE_NAME}" "$template_url"
+    fi
     if [[ $? -ne 0 ]]; then
         echo -e "${RED}[!] Lỗi: Không thể tải về file template.${NC}"
         exit 1
     fi
-    
-    # 8. Kiểm tra lại
+
+    # Xác nhận cài đặt thành công
     if [[ -f "$INSTALL_PATH" && -x "$INSTALL_PATH" ]]; then
-        echo -e "\n${GREEN}[+++] Cài đặt thành công! ${NC}"
+        echo -e "\n${GREEN}[+++] Cài đặt thành công!${NC}"
         echo -e "Bạn có thể chạy công cụ bằng lệnh: ${CYAN}${SCRIPT_NAME}${NC}"
         echo -e "Để gỡ bỏ, chạy lệnh: ${CYAN}${SCRIPT_NAME} --uninstall${NC}"
     else
@@ -137,14 +135,20 @@ install_script() {
     fi
 }
 
+# Xử lý tham số --force-install (cài đè nếu đã tồn tại)
+if [[ "$1" == "--force-install" ]]; then
+    echo -e "${YELLOW}[*] Chế độ cài đặt bắt buộc (force). Ghi đè nếu đã tồn tại.${NC}"
+    install_script
+    exit 0
+fi
+
 # Kiểm tra xem script đã được cài đặt chưa
 if [[ -f "$INSTALL_PATH" ]]; then
-    echo -e "${YELLOW}[!] Công cụ '${SCRIPT_NAME}' được đặt tại '${INSTALL_PATH}'.${NC}"
+    echo -e "${YELLOW}[!] Công cụ '${SCRIPT_NAME}' đã được đặt tại '${INSTALL_PATH}'.${NC}"
     echo -e "Nếu bạn muốn cài đặt lại, hãy chạy: ${CYAN}bash $0 --force-install${NC}"
     echo -e "Nếu bạn muốn gỡ bỏ, hãy chạy: ${CYAN}${SCRIPT_NAME} --uninstall${NC}"
     exit 1
 else
-    # Nếu chưa cài đặt, tiến hành cài đặt
     install_script
 fi
 
