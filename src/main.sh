@@ -58,9 +58,10 @@ show_menu() {
 
   # Nhóm Hệ thống 
   echo -e "\n ${YELLOW}[ HỆ THỐNG & MONITORING ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "8)" "Xem Thông tin kết nối Redis" "9)" "Xem Trạng thái Node (CPU/RAM)"
-  printf " %-3s %-35s %-3s %s\n" "10)" "Khởi động lại (Restart N8N)" "11)" "Xem Logs N8N (Tail Logs)"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "15)" "Dọn rác (Docker Prune)" "99)" "Xóa sạch Data N8N và Cài lại"
+  printf " %-3s %-35s %-3s %s\n" "8)" "Xem Thông tin kết nối Redis" "15)" "Xem Thông tin kết nối Database"
+  printf " %-3s %-35s %-3s %s\n" "9)" "Xem Trạng thái Node (CPU/RAM)" "10)" "Khởi động lại (Restart N8N)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "11)" "Xem Logs N8N (Tail Logs)" "16)" "Dọn rác (Docker Prune)"
+  printf " %-3s %-35s\n" "99)" "Xóa sạch Data N8N và Cài lại"
 
   echo "------------------------------------------------------------------------------------"
   read -p "$(echo -e ${CYAN}'Nhập lựa chọn của bạn (0-99) [ 0 = Thoát! ]: '${NC})" choice
@@ -84,7 +85,8 @@ while true; do
     12) configure_environment ;;
     13) backup_server ;;
     14) restore_server ;;
-    15) docker_prune ;;
+    15) get_database_info ;;
+    16) docker_prune ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - BanhMiSaiGon mãi iu Bạn!"

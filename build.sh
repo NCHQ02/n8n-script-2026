@@ -16,6 +16,7 @@ SOURCES=(
   "src/lib/features/auth.sh"
   "src/lib/features/data.sh"
   "src/lib/features/redis.sh"
+  "src/lib/features/database.sh"
   "src/lib/features/service.sh"
   "src/lib/features/cleanup.sh"
   "src/lib/features/backup.sh"
