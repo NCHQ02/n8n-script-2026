@@ -54,16 +54,23 @@ n8n_script/
 │   │   ├── globals.sh            # Màu sắc và biến toàn cục
 │   │   ├── utils.sh              # Hàm phụ trợ (spinner, logging, ...)
 │   │   ├── setup.sh              # Các bước cài đặt (Docker, Nginx, SSL, ...)
-│   │   └── features.sh           # Các chức năng menu (install, export, import, ...)
+│   │   └── features/             # Các chức năng menu (mỗi file = 1 nhóm tính năng)
+│   │       ├── install.sh        # install(), reinstall_n8n()
+│   │       ├── domain.sh         # change_domain()
+│   │       ├── upgrade.sh        # upgrade_n8n_version()
+│   │       ├── auth.sh           # disable_mfa(), reset_user_login()
+│   │       ├── data.sh           # export_all_data(), import_data()
+│   │       └── redis.sh          # get_redis_info()
 │   └── main.sh                   # Menu chính và vòng lặp điều khiển
+├── dist/
+│   └── n8n-host.sh               # ⚙️ File phân phối (do build.sh tạo ra — không sửa trực tiếp)
 ├── templates/
 │   └── import-workflow-credentials.json  # Template import mặc định
-├── build.sh                      # Build script: bundle src/ → n8n-host.sh
-├── install.sh                    # Script cài đặt công cụ lên hệ thống
-└── n8n-host.sh                   # ⚙️ File phân phối (do build.sh tạo ra — không sửa trực tiếp)
+├── build.sh                      # Build script: bundle src/ → dist/n8n-host.sh
+└── install.sh                    # Script cài đặt công cụ lên hệ thống
 ```
 
-> **Lưu ý:** `n8n-host.sh` được tạo tự động từ `src/`. Chỉ sửa các file trong `src/` rồi chạy `build.sh`.
+> **Lưu ý:** `dist/n8n-host.sh` được tạo tự động từ `src/`. Chỉ sửa các file trong `src/` rồi chạy `build.sh`.
 
 ---
 
@@ -72,25 +79,30 @@ n8n_script/
 ### Sửa mã nguồn
 
 ```bash
-# 1. Sửa file trong src/
-vim src/lib/features.sh
+# 1. Sửa file trong src/ (ví dụ chỉnh tính năng install)
+vim src/lib/features/install.sh
 
-# 2. Rebuild n8n-host.sh từ sources
+# 2. Rebuild từ sources
 bash build.sh
 
 # 3. Kiểm tra kết quả
-bash n8n-host.sh --help
+bash dist/n8n-host.sh --help
 ```
 
 ### Cấu trúc src/
 
-| File                  | Nội dung                                                         |
-| --------------------- | ---------------------------------------------------------------- |
-| `src/lib/globals.sh`  | Định nghĩa màu ANSI, biến đường dẫn, tên container               |
-| `src/lib/utils.sh`    | `check_root`, `spinner`, `run_silent_command`, `update_env_file` |
-| `src/lib/setup.sh`    | Cài đặt Docker, Nginx, Certbot/SSL, tạo docker-compose           |
-| `src/lib/features.sh` | Mọi chức năng trong menu (install, change_domain, export...)     |
-| `src/main.sh`         | `show_menu`, vòng lặp `while`, `--help`, `--uninstall`           |
+| File                          | Nội dung                                                         |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `src/lib/globals.sh`          | Định nghĩa màu ANSI, biến đường dẫn, tên container               |
+| `src/lib/utils.sh`            | `check_root`, `spinner`, `run_silent_command`, `update_env_file` |
+| `src/lib/setup.sh`            | Cài đặt Docker, Nginx, Certbot/SSL, tạo docker-compose           |
+| `src/lib/features/install.sh` | `install()`, `reinstall_n8n()`                                   |
+| `src/lib/features/domain.sh`  | `change_domain()`                                                |
+| `src/lib/features/upgrade.sh` | `upgrade_n8n_version()`                                          |
+| `src/lib/features/auth.sh`    | `disable_mfa()`, `reset_user_login()`                            |
+| `src/lib/features/data.sh`    | `export_all_data()`, `import_data()`                             |
+| `src/lib/features/redis.sh`   | `get_redis_info()`                                               |
+| `src/main.sh`                 | `show_menu`, vòng lặp `while`, `--help`, `--uninstall`           |
 
 ---
 
