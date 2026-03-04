@@ -29,6 +29,16 @@ show_help() {
     echo "  --install-template  Cài template mẫu từ Marketplace (kết hợp --id)"
     echo "  --audit-json        Quét hệ thống và xuất kết quả ra định dạng JSON"
     echo "  --config-set        Set cấu hình môi trường .env (kết hợp --key, --value)"
+    echo "  --change-domain     Đổi tên miền ứng dụng (kết hợp --domain)"
+    echo "  --upgrade           Nâng cấp phiên bản N8N lên latest"
+    echo "  --status            Xem trạng thái các dịch vụ"
+    echo "  --restart           Khởi động lại các dịch vụ"
+    echo "  --logs              Xem log của N8N"
+    echo "  --update-script     Cập nhật script Cloud Manager"
+    echo "  --reinstall         Xóa và cài đặt lại N8N toàn bộ"
+    echo "  --redis-info        Lấy thông tin đăng nhập Redis"
+    echo "  --db-info           Lấy thông tin đăng nhập PostgreSQL"
+    echo "  --setup-cron        Cấu hình Auto-Backup theo lịch (kết hợp --value on/off)"
     echo "  --path <str>        Truyền đường dẫn thư mục"
     echo "  --file <str>        Truyền đường dẫn tập tin"
     echo "  --id <str>          Truyền ID (cho Marketplace)"
@@ -72,6 +82,16 @@ while [[ $# -gt 0 ]]; do
     --install-template) CLI_ACTION="install-template"; shift ;;
     --audit-json) CLI_ACTION="audit-json"; shift ;;
     --config-set) CLI_ACTION="config-set"; shift ;;
+    --change-domain) CLI_ACTION="change-domain"; shift ;;
+    --upgrade) CLI_ACTION="upgrade"; shift ;;
+    --status) CLI_ACTION="status"; shift ;;
+    --restart) CLI_ACTION="restart"; shift ;;
+    --logs) CLI_ACTION="logs"; shift ;;
+    --update-script) CLI_ACTION="update-script"; shift ;;
+    --reinstall) CLI_ACTION="reinstall"; shift ;;
+    --redis-info) CLI_ACTION="redis-info"; shift ;;
+    --db-info) CLI_ACTION="db-info"; shift ;;
+    --setup-cron) CLI_ACTION="setup-cron"; shift ;;
     --uninstall) uninstall; exit 0 ;;
     --help) show_help ;;
     --backup-cron) run_auto_backup; exit 0 ;;
@@ -93,6 +113,16 @@ if [[ -n "$CLI_ACTION" ]]; then
     install-template) open_marketplace ;;
     audit-json) system_audit ;;
     config-set) configure_environment ;;
+    change-domain) change_domain ;;
+    upgrade) upgrade_n8n_version ;;
+    status) show_status ;;
+    restart) restart_services ;;
+    logs) view_logs ;;
+    update-script) update_script ;;
+    reinstall) reinstall_n8n ;;
+    redis-info) get_redis_info ;;
+    db-info) get_database_info ;;
+    setup-cron) configure_auto_backup ;;
   esac
   exit 0
 fi

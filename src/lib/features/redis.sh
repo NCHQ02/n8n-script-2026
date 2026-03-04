@@ -6,7 +6,7 @@ get_redis_info() {
     if [ ! -f "${ENV_FILE}" ]; then
         echo -e "${RED}Lỗi: File cấu hình ${ENV_FILE} không tìm thấy.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước (chọn mục 1).${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
@@ -26,6 +26,8 @@ get_redis_info() {
         echo -e "  ${CYAN}User:${NC}     default"
         echo -e "  ${CYAN}Password:${NC} ${YELLOW}${redis_password}${NC}"
     fi
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }

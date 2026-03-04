@@ -853,25 +853,27 @@ reinstall_n8n() {
     echo -e "${YELLOW}để SAO LƯU dữ liệu trước khi tiếp tục.${NC}"
     echo -e "${RED}Hành động này KHÔNG THỂ HOÀN TÁC.${NC}"
 
-    local confirm_prompt
-    confirm_prompt=$(echo -e "${YELLOW}Nhập '${NC}${RED}delete${NC}${YELLOW}' để xác nhận xóa, hoặc nhập '${NC}${CYAN}0${NC}${YELLOW}' để quay lại menu: ${NC}")
-    local confirmation
-    echo -n "$confirm_prompt"
-    read -r confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        local confirm_prompt
+        confirm_prompt=$(echo -e "${YELLOW}Nhập '${NC}${RED}delete${NC}${YELLOW}' để xác nhận xóa, hoặc nhập '${NC}${CYAN}0${NC}${YELLOW}' để quay lại menu: ${NC}")
+        local confirmation
+        echo -n "$confirm_prompt"
+        read -r confirmation
 
-    if [[ "$confirmation" == "0" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thao tác. Quay lại menu chính...${NC}"
-        sleep 1
-        return 0
-    elif [[ "$confirmation" != "delete" ]]; then
-        echo -e "\n${RED}Xác nhận không hợp lệ. Huỷ bỏ thao tác.${NC}"
-        echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-        read -r
-        return 0
+        if [[ "$confirmation" == "0" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thao tác. Quay lại menu chính...${NC}"
+            sleep 1
+            return 0
+        elif [[ "$confirmation" != "delete" ]]; then
+            echo -e "\n${RED}Xác nhận không hợp lệ. Huỷ bỏ thao tác.${NC}"
+            echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+            read -r
+            return 0
+        fi
     fi
 
     echo -e "\n${CYAN}Bắt đầu quá trình xóa N8N...${NC}"
-    trap 'stop_spinner; echo -e "\n${RED}Đã xảy ra lỗi hoặc huỷ bỏ trong quá trình xóa N8N.${NC}"; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
+    trap 'stop_spinner; echo -e "\n${RED}Đã xảy ra lỗi hoặc huỷ bỏ trong quá trình xóa N8N.${NC}"; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Đang xóa N8N..."
 
@@ -979,29 +981,35 @@ change_domain() {
     old_domain_name=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
     if [[ -z "$old_domain_name" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy DOMAIN_NAME trong file ${ENV_FILE}.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
     echo -e "Tên miền hiện tại của N8N là: ${GREEN}${old_domain_name}${NC}"
 
     local new_domain_for_change
-    if ! get_domain_and_dns_check_reusable new_domain_for_change "$old_domain_name" "Nhập tên miền MỚI bạn muốn sử dụng"; then
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+    if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_DOMAIN" ]]; then
+        new_domain_for_change="$CLI_DOMAIN"
+    else
+        if ! get_domain_and_dns_check_reusable new_domain_for_change "$old_domain_name" "Nhập tên miền MỚI bạn muốn sử dụng"; then
+            if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
+            return 0
+        fi
     fi
 
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "\n${YELLOW}Bạn có chắc chắn muốn thay đổi tên miền từ ${RED}${old_domain_name}${NC} sang ${GREEN}${new_domain_for_change}${NC} không?${NC}\n${RED}Hành động này sẽ yêu cầu cấp lại SSL và khởi động lại các service.${NC}\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "\n${YELLOW}Bạn có chắc chắn muốn thay đổi tên miền từ ${RED}${old_domain_name}${NC} sang ${GREEN}${new_domain_for_change}${NC} không?${NC}\n${RED}Hành động này sẽ yêu cầu cấp lại SSL và khởi động lại các service.${NC}\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thay đổi tên miền.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thay đổi tên miền.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
-    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình thay đổi tên miền (Mã lỗi: $RC).${NC}"; update_env_file "DOMAIN_NAME" "$old_domain_name"; update_env_file "LETSENCRYPT_EMAIL" "no-reply@${old_domain_name}"; echo -e "${YELLOW}Đã khôi phục tên miền cũ trong .env.${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
+    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình thay đổi tên miền (Mã lỗi: $RC).${NC}"; update_env_file "DOMAIN_NAME" "$old_domain_name"; update_env_file "LETSENCRYPT_EMAIL" "no-reply@${old_domain_name}"; echo -e "${YELLOW}Đã khôi phục tên miền cũ trong .env.${NC}"; fi; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Đang thay đổi tên miền..."
 
@@ -1053,8 +1061,10 @@ change_domain() {
     echo -e "N8N hiện có thể truy cập tại: ${GREEN}https://${new_domain_for_change}${NC}"
 
     trap - ERR SIGINT SIGTERM
-    echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # ---- src/lib/features/upgrade.sh ----
@@ -1066,7 +1076,7 @@ upgrade_n8n_version() {
     if [[ ! -f "${ENV_FILE}" || ! -f "${DOCKER_COMPOSE_FILE}" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy file cấu hình ${ENV_FILE} hoặc ${DOCKER_COMPOSE_FILE}.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
@@ -1080,18 +1090,20 @@ upgrade_n8n_version() {
     echo -e "Phiên bản N8N hiện tại (theo tag image): ${GREEN}${current_image_tag}${NC}"
     echo -e "${YELLOW}Chức năng này sẽ nâng cấp N8N lên phiên bản '${GREEN}latest${YELLOW}' mới nhất từ Docker Hub.${NC}"
 
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục nâng cấp không?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục nâng cấp không?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ nâng cấp phiên bản.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ nâng cấp phiên bản.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
-    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình nâng cấp (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
+    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình nâng cấp (Mã lỗi: $RC).${NC}"; fi; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Đang nâng cấp N8N lên phiên bản mới nhất..."
 
@@ -1115,8 +1127,10 @@ upgrade_n8n_version() {
     echo -e "Vui lòng kiểm tra giao diện web của N8N để xác nhận phiên bản."
 
     trap - ERR SIGINT SIGTERM
-    echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # ---- src/lib/features/auth.sh ----
@@ -1556,7 +1570,7 @@ get_redis_info() {
     if [ ! -f "${ENV_FILE}" ]; then
         echo -e "${RED}Lỗi: File cấu hình ${ENV_FILE} không tìm thấy.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước (chọn mục 1).${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
@@ -1576,8 +1590,10 @@ get_redis_info() {
         echo -e "  ${CYAN}User:${NC}     default"
         echo -e "  ${CYAN}Password:${NC} ${YELLOW}${redis_password}${NC}"
     fi
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # ---- src/lib/features/database.sh ----
@@ -1589,7 +1605,7 @@ get_database_info() {
     if [ ! -f "${ENV_FILE}" ]; then
         echo -e "${RED}Lỗi: File cấu hình ${ENV_FILE} không tìm thấy.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước (chọn mục 1).${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
@@ -1615,8 +1631,10 @@ get_database_info() {
         echo -e "\n${YELLOW}Lưu ý: Mặc định kịch bản Dymanic Host không mở cổng 5432 ra public internet để bảo mật.${NC}"
         echo -e "${YELLOW}Bạn cần cấu hình docker-compose nếu muốn map ports 5432:5432 ra ngoài.${NC}"
     fi
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
 
 # ---- src/lib/features/service.sh ----
@@ -1628,7 +1646,7 @@ show_status() {
   echo -e "${CYAN}=== TRẠNG THÁI DỊCH VỤ ===${NC}"
   if [ ! -d "$N8N_DIR" ]; then
     echo -e "${RED}[!] Thư mục cài đặt ${N8N_DIR} không tồn tại. Vui lòng cài đặt N8N trước.${NC}"
-    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."; fi
     return 1
   fi
 
@@ -1643,7 +1661,7 @@ show_status() {
   docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}" | grep -E "Name|${N8N_CONTAINER_NAME}|n8n_redis|n8n_postgres|redis|postgres" || echo "Không có container nào đang chạy."
   
   echo ""
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."; fi
 }
 
 # Khởi động lại N8N và Redis
@@ -1657,12 +1675,13 @@ restart_services() {
   fi
 
   cd "$N8N_DIR" || return 1
-  echo -e "${YELLOW}[!] Lệnh này sẽ khởi động lại N8N và Redis. Sẽ mất một chút thời gian.${NC}"
-  read -p "Bạn có chắc chắn muốn khởi động lại hệ thống? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có chắc chắn muốn khởi động lại hệ thống? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
   fi
 
   # Restart N8N and Redis
@@ -1672,7 +1691,7 @@ restart_services() {
     echo -e "${GREEN}[+] Hệ thống đã được khởi động lại thành công!${NC}"
     echo -e "${YELLOW}[*] Lưu ý: Có thể mất 1-2 phút để N8N khởi động lên hoàn toàn.${NC}"
   fi
-  sleep 3
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then sleep 3; fi
 }
 
 # Xem logs của N8N
@@ -1681,7 +1700,7 @@ view_logs() {
   echo -e "${CYAN}=== XEM LOGS N8N ===${NC}"
   if [ ! -d "$N8N_DIR" ]; then
     echo -e "${RED}[!] Thư mục cài đặt ${N8N_DIR} không tồn tại.${NC}"
-    sleep 2
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then sleep 2; fi
     return 1
   fi
 
@@ -1690,10 +1709,14 @@ view_logs() {
   echo -e "${YELLOW}[*] Ấn Ctrl+C để thoát khỏi màn hình xem log.${NC}"
   echo "------------------------------------------------------------------------------------"
   
-  $DOCKER_COMPOSE_CMD logs -f --tail=100 $N8N_SERVICE_NAME
+  if [[ "$NON_INTERACTIVE" == "true" ]]; then
+    $DOCKER_COMPOSE_CMD logs --tail=100 $N8N_SERVICE_NAME
+  else
+    $DOCKER_COMPOSE_CMD logs -f --tail=100 $N8N_SERVICE_NAME
+  fi
   
   echo "------------------------------------------------------------------------------------"
-  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."; fi
 }
 
 # ---- src/lib/features/cleanup.sh ----
@@ -2391,11 +2414,13 @@ update_script() {
   clear
   echo -e "${CYAN}=== CẬP NHẬT N8N CLOUD MANAGER ===${NC}"
   echo -e "${YELLOW}[*] Hệ thống sẽ tải phiên bản script (n8n-host) mới nhất từ kho lưu trữ của NCHQ02...${NC}"
-  read -p "Bạn có muốn tiếp tục cập nhật không? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có muốn tiếp tục cập nhật không? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
   fi
 
   # URL thô (raw.githubusercontent.com) của file dist/n8n-host.sh (Sẽ tải trực tiếp script đã build)
@@ -2415,7 +2440,7 @@ update_script() {
     echo -e "${RED}[!] Không thể tải phiên bản mới. Kiểm tra kết nối Internet hoặc link Repo Repository Github.${NC}"
     sudo rm -f "$TEMP_FILE"
     echo ""
-    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."; fi
   fi
 }
 
@@ -2572,6 +2597,16 @@ show_help() {
     echo "  --install-template  Cài template mẫu từ Marketplace (kết hợp --id)"
     echo "  --audit-json        Quét hệ thống và xuất kết quả ra định dạng JSON"
     echo "  --config-set        Set cấu hình môi trường .env (kết hợp --key, --value)"
+    echo "  --change-domain     Đổi tên miền ứng dụng (kết hợp --domain)"
+    echo "  --upgrade           Nâng cấp phiên bản N8N lên latest"
+    echo "  --status            Xem trạng thái các dịch vụ"
+    echo "  --restart           Khởi động lại các dịch vụ"
+    echo "  --logs              Xem log của N8N"
+    echo "  --update-script     Cập nhật script Cloud Manager"
+    echo "  --reinstall         Xóa và cài đặt lại N8N toàn bộ"
+    echo "  --redis-info        Lấy thông tin đăng nhập Redis"
+    echo "  --db-info           Lấy thông tin đăng nhập PostgreSQL"
+    echo "  --setup-cron        Cấu hình Auto-Backup theo lịch (kết hợp --value on/off)"
     echo "  --path <str>        Truyền đường dẫn thư mục"
     echo "  --file <str>        Truyền đường dẫn tập tin"
     echo "  --id <str>          Truyền ID (cho Marketplace)"
@@ -2615,6 +2650,16 @@ while [[ $# -gt 0 ]]; do
     --install-template) CLI_ACTION="install-template"; shift ;;
     --audit-json) CLI_ACTION="audit-json"; shift ;;
     --config-set) CLI_ACTION="config-set"; shift ;;
+    --change-domain) CLI_ACTION="change-domain"; shift ;;
+    --upgrade) CLI_ACTION="upgrade"; shift ;;
+    --status) CLI_ACTION="status"; shift ;;
+    --restart) CLI_ACTION="restart"; shift ;;
+    --logs) CLI_ACTION="logs"; shift ;;
+    --update-script) CLI_ACTION="update-script"; shift ;;
+    --reinstall) CLI_ACTION="reinstall"; shift ;;
+    --redis-info) CLI_ACTION="redis-info"; shift ;;
+    --db-info) CLI_ACTION="db-info"; shift ;;
+    --setup-cron) CLI_ACTION="setup-cron"; shift ;;
     --uninstall) uninstall; exit 0 ;;
     --help) show_help ;;
     --backup-cron) run_auto_backup; exit 0 ;;
@@ -2636,6 +2681,16 @@ if [[ -n "$CLI_ACTION" ]]; then
     install-template) open_marketplace ;;
     audit-json) system_audit ;;
     config-set) configure_environment ;;
+    change-domain) change_domain ;;
+    upgrade) upgrade_n8n_version ;;
+    status) show_status ;;
+    restart) restart_services ;;
+    logs) view_logs ;;
+    update-script) update_script ;;
+    reinstall) reinstall_n8n ;;
+    redis-info) get_redis_info ;;
+    db-info) get_database_info ;;
+    setup-cron) configure_auto_backup ;;
   esac
   exit 0
 fi

@@ -6,7 +6,7 @@ upgrade_n8n_version() {
     if [[ ! -f "${ENV_FILE}" || ! -f "${DOCKER_COMPOSE_FILE}" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy file cấu hình ${ENV_FILE} hoặc ${DOCKER_COMPOSE_FILE}.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
@@ -20,18 +20,20 @@ upgrade_n8n_version() {
     echo -e "Phiên bản N8N hiện tại (theo tag image): ${GREEN}${current_image_tag}${NC}"
     echo -e "${YELLOW}Chức năng này sẽ nâng cấp N8N lên phiên bản '${GREEN}latest${YELLOW}' mới nhất từ Docker Hub.${NC}"
 
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục nâng cấp không?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "Bạn có chắc chắn muốn tiếp tục nâng cấp không?\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ nâng cấp phiên bản.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ nâng cấp phiên bản.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
-    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình nâng cấp (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
+    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình nâng cấp (Mã lỗi: $RC).${NC}"; fi; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Đang nâng cấp N8N lên phiên bản mới nhất..."
 
@@ -55,6 +57,8 @@ upgrade_n8n_version() {
     echo -e "Vui lòng kiểm tra giao diện web của N8N để xác nhận phiên bản."
 
     trap - ERR SIGINT SIGTERM
-    echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }

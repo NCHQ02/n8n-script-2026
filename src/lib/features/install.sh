@@ -94,25 +94,27 @@ reinstall_n8n() {
     echo -e "${YELLOW}để SAO LƯU dữ liệu trước khi tiếp tục.${NC}"
     echo -e "${RED}Hành động này KHÔNG THỂ HOÀN TÁC.${NC}"
 
-    local confirm_prompt
-    confirm_prompt=$(echo -e "${YELLOW}Nhập '${NC}${RED}delete${NC}${YELLOW}' để xác nhận xóa, hoặc nhập '${NC}${CYAN}0${NC}${YELLOW}' để quay lại menu: ${NC}")
-    local confirmation
-    echo -n "$confirm_prompt"
-    read -r confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        local confirm_prompt
+        confirm_prompt=$(echo -e "${YELLOW}Nhập '${NC}${RED}delete${NC}${YELLOW}' để xác nhận xóa, hoặc nhập '${NC}${CYAN}0${NC}${YELLOW}' để quay lại menu: ${NC}")
+        local confirmation
+        echo -n "$confirm_prompt"
+        read -r confirmation
 
-    if [[ "$confirmation" == "0" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thao tác. Quay lại menu chính...${NC}"
-        sleep 1
-        return 0
-    elif [[ "$confirmation" != "delete" ]]; then
-        echo -e "\n${RED}Xác nhận không hợp lệ. Huỷ bỏ thao tác.${NC}"
-        echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-        read -r
-        return 0
+        if [[ "$confirmation" == "0" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thao tác. Quay lại menu chính...${NC}"
+            sleep 1
+            return 0
+        elif [[ "$confirmation" != "delete" ]]; then
+            echo -e "\n${RED}Xác nhận không hợp lệ. Huỷ bỏ thao tác.${NC}"
+            echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+            read -r
+            return 0
+        fi
     fi
 
     echo -e "\n${CYAN}Bắt đầu quá trình xóa N8N...${NC}"
-    trap 'stop_spinner; echo -e "\n${RED}Đã xảy ra lỗi hoặc huỷ bỏ trong quá trình xóa N8N.${NC}"; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
+    trap 'stop_spinner; echo -e "\n${RED}Đã xảy ra lỗi hoặc huỷ bỏ trong quá trình xóa N8N.${NC}"; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Đang xóa N8N..."
 

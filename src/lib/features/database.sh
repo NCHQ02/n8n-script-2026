@@ -6,7 +6,7 @@ get_database_info() {
     if [ ! -f "${ENV_FILE}" ]; then
         echo -e "${RED}Lỗi: File cấu hình ${ENV_FILE} không tìm thấy.${NC}"
         echo -e "${YELLOW}Có vẻ như N8N chưa được cài đặt. Vui lòng cài đặt trước (chọn mục 1).${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
 
@@ -32,6 +32,8 @@ get_database_info() {
         echo -e "\n${YELLOW}Lưu ý: Mặc định kịch bản Dymanic Host không mở cổng 5432 ra public internet để bảo mật.${NC}"
         echo -e "${YELLOW}Bạn cần cấu hình docker-compose nếu muốn map ports 5432:5432 ra ngoài.${NC}"
     fi
-    echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }

@@ -4,11 +4,13 @@ update_script() {
   clear
   echo -e "${CYAN}=== CẬP NHẬT N8N CLOUD MANAGER ===${NC}"
   echo -e "${YELLOW}[*] Hệ thống sẽ tải phiên bản script (n8n-host) mới nhất từ kho lưu trữ của NCHQ02...${NC}"
-  read -p "Bạn có muốn tiếp tục cập nhật không? (y/n): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "Đã hủy thao tác."
-    sleep 1
-    return 0
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    read -p "Bạn có muốn tiếp tục cập nhật không? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy thao tác."
+      sleep 1
+      return 0
+    fi
   fi
 
   # URL thô (raw.githubusercontent.com) của file dist/n8n-host.sh (Sẽ tải trực tiếp script đã build)
@@ -28,6 +30,6 @@ update_script() {
     echo -e "${RED}[!] Không thể tải phiên bản mới. Kiểm tra kết nối Internet hoặc link Repo Repository Github.${NC}"
     sudo rm -f "$TEMP_FILE"
     echo ""
-    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."; fi
   fi
 }

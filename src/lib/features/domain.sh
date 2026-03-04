@@ -14,29 +14,35 @@ change_domain() {
     old_domain_name=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
     if [[ -z "$old_domain_name" ]]; then
         echo -e "${RED}Lỗi: Không tìm thấy DOMAIN_NAME trong file ${ENV_FILE}.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
         return 0
     fi
     echo -e "Tên miền hiện tại của N8N là: ${GREEN}${old_domain_name}${NC}"
 
     local new_domain_for_change
-    if ! get_domain_and_dns_check_reusable new_domain_for_change "$old_domain_name" "Nhập tên miền MỚI bạn muốn sử dụng"; then
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+    if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_DOMAIN" ]]; then
+        new_domain_for_change="$CLI_DOMAIN"
+    else
+        if ! get_domain_and_dns_check_reusable new_domain_for_change "$old_domain_name" "Nhập tên miền MỚI bạn muốn sử dụng"; then
+            if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
+            return 0
+        fi
     fi
 
-    local confirmation_prompt
-    confirmation_prompt=$(echo -e "\n${YELLOW}Bạn có chắc chắn muốn thay đổi tên miền từ ${RED}${old_domain_name}${NC} sang ${GREEN}${new_domain_for_change}${NC} không?${NC}\n${RED}Hành động này sẽ yêu cầu cấp lại SSL và khởi động lại các service.${NC}\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
-    local confirmation
-    read -r -p "$confirmation_prompt" confirmation
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        local confirmation_prompt
+        confirmation_prompt=$(echo -e "\n${YELLOW}Bạn có chắc chắn muốn thay đổi tên miền từ ${RED}${old_domain_name}${NC} sang ${GREEN}${new_domain_for_change}${NC} không?${NC}\n${RED}Hành động này sẽ yêu cầu cấp lại SSL và khởi động lại các service.${NC}\nNhập '${GREEN}ok${NC}' để xác nhận, hoặc bất kỳ phím nào khác để huỷ bỏ: ")
+        local confirmation
+        read -r -p "$confirmation_prompt" confirmation
 
-    if [[ "$confirmation" != "ok" ]]; then
-        echo -e "\n${GREEN}Huỷ bỏ thay đổi tên miền.${NC}"
-        read -r -p "Nhấn Enter để quay lại menu..."
-        return 0
+        if [[ "$confirmation" != "ok" ]]; then
+            echo -e "\n${GREEN}Huỷ bỏ thay đổi tên miền.${NC}"
+            read -r -p "Nhấn Enter để quay lại menu..."
+            return 0
+        fi
     fi
 
-    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình thay đổi tên miền (Mã lỗi: $RC).${NC}"; update_env_file "DOMAIN_NAME" "$old_domain_name"; update_env_file "LETSENCRYPT_EMAIL" "no-reply@${old_domain_name}"; echo -e "${YELLOW}Đã khôi phục tên miền cũ trong .env.${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
+    trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình thay đổi tên miền (Mã lỗi: $RC).${NC}"; update_env_file "DOMAIN_NAME" "$old_domain_name"; update_env_file "LETSENCRYPT_EMAIL" "no-reply@${old_domain_name}"; echo -e "${YELLOW}Đã khôi phục tên miền cũ trong .env.${NC}"; fi; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
 
     start_spinner "Đang thay đổi tên miền..."
 
@@ -88,6 +94,8 @@ change_domain() {
     echo -e "N8N hiện có thể truy cập tại: ${GREEN}https://${new_domain_for_change}${NC}"
 
     trap - ERR SIGINT SIGTERM
-    echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    read -r
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
 }
