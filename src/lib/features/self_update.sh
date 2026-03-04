@@ -3,7 +3,7 @@
 update_script() {
   clear
   echo -e "${CYAN}=== CẬP NHẬT N8N CLOUD MANAGER ===${NC}"
-  echo -e "${YELLOW}[*] Hệ thống sẽ tải phiên bản script (n8n-host) mới nhất từ kho lưu trữ của BanhMiSaiGon...${NC}"
+  echo -e "${YELLOW}[*] Hệ thống sẽ tải phiên bản script (n8n-host) mới nhất từ kho lưu trữ của NCHQ02...${NC}"
   read -p "Bạn có muốn tiếp tục cập nhật không? (y/n): " confirm
   if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
     echo "Đã hủy thao tác."

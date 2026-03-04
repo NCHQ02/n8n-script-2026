@@ -2133,7 +2133,7 @@ system_audit() {
 update_script() {
   clear
   echo -e "${CYAN}=== CẬP NHẬT N8N CLOUD MANAGER ===${NC}"
-  echo -e "${YELLOW}[*] Hệ thống sẽ tải phiên bản script (n8n-host) mới nhất từ kho lưu trữ của BanhMiSaiGon...${NC}"
+  echo -e "${YELLOW}[*] Hệ thống sẽ tải phiên bản script (n8n-host) mới nhất từ kho lưu trữ của NCHQ02...${NC}"
   read -p "Bạn có muốn tiếp tục cập nhật không? (y/n): " confirm
   if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
     echo "Đã hủy thao tác."
@@ -2160,6 +2160,118 @@ update_script() {
     echo ""
     read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
   fi
+}
+
+# ---- src/lib/features/marketplace.sh ----
+# --- Marketplace (Chợ Templates N8N) ---
+
+open_marketplace() {
+  while true; do
+    clear
+    echo -e "${CYAN}=== KHÁM PHÁ & CÀI ĐẶT WORKFLOW TỰ ĐỘNG (MARKETPLACE) ===${NC}"
+    echo -e "${YELLOW}Chào mừng đến với chợ Template của NCHQ02!${NC}"
+    echo -e "${GREEN}Hệ thống sẽ tải danh sách các Workflow có sẵn từ kho lưu trữ GitHub và tự động cài đặt vào N8N của bạn.${NC}"
+    echo "--------------------------------------------------------"
+    
+    # Định nghĩa danh sách các mẫu (id|tên|link json)
+    # Tương lai có thể cào tự động bằng API Github, nhưng fix cứng mảng sẽ an toàn và nhanh hơn cho Bash Script
+    local templates=(
+      "1|Luồng Telegram Bot gửi tin nhắn mặc định|telegram-bot.json"
+      "2|Luồng báo cáo Doanh Thu qua Google Sheet|google-sheet-report.json"
+      "3|Luồng Đồng bộ Lead từ Facebook Ads về CRM|fb-lead-crm.json"
+      "4|Luồng Auto-reply Email bằng OpenAI|email-openai-reply.json"
+    )
+
+    # Hiển thị Menu
+    for item in "${templates[@]}"; do
+      local id=$(echo "$item" | cut -d'|' -f1)
+      local name=$(echo "$item" | cut -d'|' -f2)
+      printf " [%-2s] %s\n" "$id" "$name"
+    done
+
+    echo "--------------------------------------------------------"
+    echo " [0]  Quay lại Menu Chính"
+    echo ""
+    
+    read -p "Chọn Workflow bạn muốn cài đặt (0-${#templates[@]}): " choice
+    
+    if [ "$choice" -eq 0 ] 2>/dev/null; then
+      return 0
+    fi
+    
+    # Tìm kiếm choice trong danh sách
+    local selected_name=""
+    local selected_file=""
+    
+    for item in "${templates[@]}"; do
+      local id=$(echo "$item" | cut -d'|' -f1)
+      if [ "$id" == "$choice" ]; then
+        selected_name=$(echo "$item" | cut -d'|' -f2)
+        selected_file=$(echo "$item" | cut -d'|' -f3)
+        break
+      fi
+    done
+    
+    if [[ -z "$selected_name" ]]; then
+      echo -e "${RED}[!] Lựa chọn không hợp lệ.${NC}"
+      sleep 1
+      continue
+    fi
+    
+    echo -e "\n${YELLOW}[*] Bạn đã chọn: ${CYAN}${selected_name}${NC}"
+    read -p "Phiên bản này sẽ được tải xuống và Import trực tiếp vào N8N. Tiếp tục? (y/n): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "Đã hủy."
+      sleep 1
+      continue
+    fi
+    
+    local BASE_URL="https://raw.githubusercontent.com/NCHQ02/n8n-script-2026/main/templates"
+    local TARGET_URL="${BASE_URL}/${selected_file}"
+    local TEMP_JSON="/tmp/n8n_marketplace_template_$$.json"
+    
+    start_spinner "Đang tải dữ liệu mẫu từ GitHub..."
+    if curl -sSL --fail "$TARGET_URL" -o "$TEMP_JSON"; then
+      stop_spinner
+      echo -e "${GREEN}[+] Tải thành công file cấu hình!${NC}"
+      
+      start_spinner "Đang cài đặt Workflow vào N8N..."
+      local container_temp_import_dir="/home/node/.n8n/temp_marketplace_$$"
+      
+      # Tạo folder tạm trong container
+      sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_import_dir}"
+      
+      # Copy file json vào container
+      sudo docker cp "${TEMP_JSON}" "${N8N_CONTAINER_NAME}:${container_temp_import_dir}/template.json"
+      
+      # Import workflow
+      local import_result
+      import_result=$(sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n import:workflow --input="${container_temp_import_dir}/template.json" 2>&1)
+      local import_exit_code=$?
+      
+      # Xoá folder tạm
+      sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_import_dir}"
+      sudo rm -f "$TEMP_JSON"
+      
+      stop_spinner
+      
+      if [ $import_exit_code -eq 0 ]; then
+        echo -e "${GREEN}[+] Khởi tạo thành công! Workflow đã được đưa vào Database của N8N.${NC}"
+        echo -e "${YELLOW}Lưu ý: Bạn hãy đăng nhập vào N8N để cấu hình Credentials (Api key, Token) cho luồng chạy nhé!${NC}"
+      else
+        echo -e "${RED}[!] Cài đặt thất bại! Chi tiết lỗi:${NC}"
+        echo "$import_result"
+      fi
+    else
+      stop_spinner
+      echo -e "${RED}[!] Lỗi: Không thể tải file ${selected_file} từ GitHub.${NC}"
+      echo -e "${YELLOW}File mẫu này có thể chưa được tác giả NCHQ02 upload lên kho chứa.${NC}"
+      sudo rm -f "$TEMP_JSON"
+    fi
+    
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại MarketPlace..."
+  done
 }
 
 # ---- src/main.sh ----
@@ -2204,7 +2316,7 @@ show_menu() {
   clear
   printf "${CYAN}+==================================================================================+${NC}\n"
   printf "${CYAN}|                                N8N Cloud Manager                                 |${NC}\n"
-  printf "${CYAN}|                          Create & Custom By BanhMiSaiGon                         |${NC}\n"
+  printf "${CYAN}|                          Create & Custom By NCHQ02                             |${NC}\n"
   printf "${CYAN}+==================================================================================+${NC}\n"
   echo ""
   echo -e " ${YELLOW}Phím tắt: Nhấn Ctrl + C hoặc nhập 0 để thoát${NC}"
@@ -2224,14 +2336,14 @@ show_menu() {
   echo -e "\n ${YELLOW}[ 3. DỮ LIỆU & SAO LƯU ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "7)" "Export (Tải Workflows & Credential)" "8)" "Import (Phục hồi Workflows/Creds)"
   printf " %-3s %-35s %-3s %s\n" "9)" "Siêu Backup (Toàn bộ Server -> Zip)" "10)" "Khôi phục toàn bộ hệ thống từ Zip"
-  printf " %-3s %-35s\n" "11)" "Cấu hình Auto-Backup theo lịch (Cron)"
+  printf " %-3s %-35s %-3s %s\n" "11)" "Cấu hình Auto-Backup theo lịch (Cron)" "12)" "Marketplace (Cài đặt Workflow mẫu)"
 
   # Nhóm 4: Hệ thống & Logs
   echo -e "\n ${YELLOW}[ 4. QUẢN TRỊ HỆ THỐNG ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "12)" "Xem Thông tin tài khoản Redis" "13)" "Xem Thông tin tài khoản Database"
-  printf " %-3s %-35s %-3s %s\n" "14)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "15)" "Khởi động lại (Restart N8N Container)"
-  printf " %-3s %-35s %-3s %s\n" "16)" "Xem Error Logs N8N (Terminal)" "17)" "Dọn rác máy chủ (Docker Prune)"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "18)" "System & Security Audit" "19)" "Cập nhật N8N Cloud Manager"
+  printf " %-3s %-35s %-3s %s\n" "13)" "Xem Thông tin tài khoản Redis" "14)" "Xem Thông tin tài khoản Database"
+  printf " %-3s %-35s %-3s %s\n" "15)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "16)" "Khởi động lại (Restart N8N Container)"
+  printf " %-3s %-35s %-3s %s\n" "17)" "Xem Error Logs N8N (Terminal)" "18)" "Dọn rác máy chủ (Docker Prune)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "19)" "System & Security Audit" "20)" "Cập nhật N8N Cloud Manager"
 
   # Nhóm Nguy hiểm
   echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
@@ -2256,17 +2368,18 @@ while true; do
     9) backup_server ;;
     10) restore_server ;;
     11) configure_auto_backup ;;
-    12) get_redis_info ;;
-    13) get_database_info ;;
-    14) show_status ;;
-    15) restart_services ;;
-    16) view_logs ;;
-    17) docker_prune ;;
-    18) system_audit ;;
-    19) update_script ;;
+    12) open_marketplace ;;
+    13) get_redis_info ;;
+    14) get_database_info ;;
+    15) show_status ;;
+    16) restart_services ;;
+    17) view_logs ;;
+    18) docker_prune ;;
+    19) system_audit ;;
+    20) update_script ;;
     99) reinstall_n8n ;;
     0)
-        echo "Tạm Biệt nhé!  - BanhMiSaiGon mãi iu Bạn!"
+        echo "Tạm Biệt nhé!  - NCHQ02 mãi iu Bạn!"
         echo "Design By Nguyễn Cao Hoàng Quý!"
         exit 0
         ;;

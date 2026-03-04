@@ -2,7 +2,7 @@
 
 > Công cụ quản lý N8N toàn diện trên VPS — cài đặt tự động, quản lý SSL, backup & restore dữ liệu.
 >
-> **Custom by Nguyễn Cao Hoàng Quý (BanhMiSaiGon)**
+> **Custom by Nguyễn Cao Hoàng Quý (NCHQ02)**
 
 ---
 

@@ -23,6 +23,7 @@ SOURCES=(
   "src/lib/features/config.sh"
   "src/lib/features/audit.sh"
   "src/lib/features/self_update.sh"
+  "src/lib/features/marketplace.sh"
   "src/main.sh"
 )
 

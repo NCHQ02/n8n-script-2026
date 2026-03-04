@@ -40,7 +40,7 @@ show_menu() {
   clear
   printf "${CYAN}+==================================================================================+${NC}\n"
   printf "${CYAN}|                                N8N Cloud Manager                                 |${NC}\n"
-  printf "${CYAN}|                          Create & Custom By BanhMiSaiGon                         |${NC}\n"
+  printf "${CYAN}|                          Create & Custom By NCHQ02                             |${NC}\n"
   printf "${CYAN}+==================================================================================+${NC}\n"
   echo ""
   echo -e " ${YELLOW}Phím tắt: Nhấn Ctrl + C hoặc nhập 0 để thoát${NC}"
@@ -60,14 +60,14 @@ show_menu() {
   echo -e "\n ${YELLOW}[ 3. DỮ LIỆU & SAO LƯU ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "7)" "Export (Tải Workflows & Credential)" "8)" "Import (Phục hồi Workflows/Creds)"
   printf " %-3s %-35s %-3s %s\n" "9)" "Siêu Backup (Toàn bộ Server -> Zip)" "10)" "Khôi phục toàn bộ hệ thống từ Zip"
-  printf " %-3s %-35s\n" "11)" "Cấu hình Auto-Backup theo lịch (Cron)"
+  printf " %-3s %-35s %-3s %s\n" "11)" "Cấu hình Auto-Backup theo lịch (Cron)" "12)" "Marketplace (Cài đặt Workflow mẫu)"
 
   # Nhóm 4: Hệ thống & Logs
   echo -e "\n ${YELLOW}[ 4. QUẢN TRỊ HỆ THỐNG ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "12)" "Xem Thông tin tài khoản Redis" "13)" "Xem Thông tin tài khoản Database"
-  printf " %-3s %-35s %-3s %s\n" "14)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "15)" "Khởi động lại (Restart N8N Container)"
-  printf " %-3s %-35s %-3s %s\n" "16)" "Xem Error Logs N8N (Terminal)" "17)" "Dọn rác máy chủ (Docker Prune)"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "18)" "System & Security Audit" "19)" "Cập nhật N8N Cloud Manager"
+  printf " %-3s %-35s %-3s %s\n" "13)" "Xem Thông tin tài khoản Redis" "14)" "Xem Thông tin tài khoản Database"
+  printf " %-3s %-35s %-3s %s\n" "15)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "16)" "Khởi động lại (Restart N8N Container)"
+  printf " %-3s %-35s %-3s %s\n" "17)" "Xem Error Logs N8N (Terminal)" "18)" "Dọn rác máy chủ (Docker Prune)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "19)" "System & Security Audit" "20)" "Cập nhật N8N Cloud Manager"
 
   # Nhóm Nguy hiểm
   echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
@@ -92,17 +92,18 @@ while true; do
     9) backup_server ;;
     10) restore_server ;;
     11) configure_auto_backup ;;
-    12) get_redis_info ;;
-    13) get_database_info ;;
-    14) show_status ;;
-    15) restart_services ;;
-    16) view_logs ;;
-    17) docker_prune ;;
-    18) system_audit ;;
-    19) update_script ;;
+    12) open_marketplace ;;
+    13) get_redis_info ;;
+    14) get_database_info ;;
+    15) show_status ;;
+    16) restart_services ;;
+    17) view_logs ;;
+    18) docker_prune ;;
+    19) system_audit ;;
+    20) update_script ;;
     99) reinstall_n8n ;;
     0)
-        echo "Tạm Biệt nhé!  - BanhMiSaiGon mãi iu Bạn!"
+        echo "Tạm Biệt nhé!  - NCHQ02 mãi iu Bạn!"
         echo "Design By Nguyễn Cao Hoàng Quý!"
         exit 0
         ;;
