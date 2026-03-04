@@ -1847,6 +1847,77 @@ restore_server() {
   read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
 }
 
+# Chạy Backup tự động không cần prompt (Dành cho Cronjob)
+run_auto_backup() {
+  if [ ! -d "$N8N_DIR" ]; then exit 1; fi
+  
+  mkdir -p "$BACKUP_DIR"
+  local timestamp=$(date +%Y%m%d_%H%M%S)
+  local current_backup_dir="${BACKUP_DIR}/n8n_backup_${timestamp}"
+  sudo mkdir -p "${current_backup_dir}"
+  
+  # 1. Export Credentials & Workflows
+  local container_temp_export_dir="/home/node/.n8n/temp_export_$$"
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_export_dir}"
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:credentials --all --output="${container_temp_export_dir}/credentials.json" &>/dev/null || true
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:workflow --all --output="${container_temp_export_dir}/workflows.json" &>/dev/null || true
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/credentials.json" "${current_backup_dir}/credentials.json" &>/dev/null || true
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/workflows.json" "${current_backup_dir}/workflows.json" &>/dev/null || true
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_export_dir}" &>/dev/null || true
+
+  # 2. Database PostgreSQL
+  local db_user=$(grep "^POSTGRES_USER=" "${ENV_FILE}" | cut -d'=' -f2)
+  local db_name=$(grep "^POSTGRES_DB=" "${ENV_FILE}" | cut -d'=' -f2)
+  if [[ -n "$db_user" && -n "$db_name" ]]; then
+      sudo docker exec n8n_postgres pg_dump -U "$db_user" -d "$db_name" -F c -f "/tmp/database.dump" &>/dev/null || true
+      sudo docker cp "n8n_postgres:/tmp/database.dump" "${current_backup_dir}/database.dump" &>/dev/null || true
+      sudo docker exec n8n_postgres rm -f "/tmp/database.dump" &>/dev/null || true
+  fi
+
+  # 3. Config
+  sudo cp "${N8N_DIR}/.env" "${current_backup_dir}/" &>/dev/null || true
+  sudo cp "${N8N_DIR}/docker-compose.yml" "${current_backup_dir}/" &>/dev/null || true
+  
+  # 4. Gom lại thành file zip
+  local backup_filename="n8n_full_backup_${timestamp}.tar.gz"
+  local final_backup_file="${BACKUP_DIR}/${backup_filename}"
+  cd ${BACKUP_DIR} && tar -czf ${final_backup_file} $(basename ${current_backup_dir}) 2>/dev/null
+  sudo rm -rf "${current_backup_dir}"
+
+  # 5. Xoá các bản backup cũ, chỉ giữ 7 bản gần nhất
+  ls -1tr ${BACKUP_DIR}/n8n_full_backup_*.tar.gz 2>/dev/null | head -n -7 | xargs -r rm -f
+}
+
+# Cấu hình cài đặt Cronjob Backup
+configure_auto_backup() {
+  clear
+  echo -e "${CYAN}=== CẤU HÌNH AUTO-BACKUP THEO LỊCH ===${NC}"
+  echo -e "${YELLOW}Chức năng này sẽ tạo Cronjob tự động backup N8N vào lúc 0:00 mỗi ngày.${NC}"
+  echo -e "${YELLOW}Chỉ giữ lại 7 bản backup gần nhất để tránh đầy ổ cứng.${NC}"
+  echo ""
+  
+  # Kiểm tra xem đang bật hay tắt
+  if crontab -l 2>/dev/null | grep -q "${INSTALL_PATH} --backup-cron"; then
+      echo -e "Trạng thái hiện tại: ${GREEN}ĐANG BẬT (ON)${NC}"
+  else
+      echo -e "Trạng thái hiện tại: ${RED}ĐANG TẮT (OFF)${NC}"
+  fi
+  echo "--------------------------------------------------------"
+
+  read -p "Bạn muốn ON (Bật) hay OFF (Tắt) chức năng này? (nhập on/off/hủy): " confirm
+  if [[ "$confirm" == "on" || "$confirm" == "ON" ]]; then
+    (crontab -l 2>/dev/null | grep -v "${INSTALL_PATH} --backup-cron") | crontab -
+    (crontab -l 2>/dev/null; echo "0 0 * * * ${INSTALL_PATH} --backup-cron > /dev/null 2>&1") | crontab -
+    echo -e "${GREEN}[+] Đã thiết lập Auto-Backup vào lúc 0:00 mỗi ngày thành công!${NC}"
+  elif [[ "$confirm" == "off" || "$confirm" == "OFF" ]]; then
+    (crontab -l 2>/dev/null | grep -v "${INSTALL_PATH} --backup-cron") | crontab -
+    echo -e "${GREEN}[+] Đã TẮT Auto-Backup thành công!${NC}"
+  else
+    echo "Đã hủy thao tác."
+  fi
+  sleep 2
+}
+
 # ---- src/lib/features/config.sh ----
 # --- Cấu hình Môi trường (Environment Variables) ---
 
@@ -1873,12 +1944,13 @@ configure_environment() {
     echo "> [3] Giới hạn dung lượng tải: ${payload_size:-'Không xác định'} (Mặc định N8N: 16MB)"
     echo "> [4] Tự động xóa lịch sử:     ${execution_prune:-'false'} (Tắt là false)"
     echo "--------------------------------------------------------"
-    echo " [5]  Khởi động lại (Restart) N8N để áp dụng cấu hình MỚI"
+    echo " [5]  Cấu hình hệ thống Email (SMTP) cho N8N"
+    echo " [6]  Khởi động lại (Restart) N8N để áp dụng cấu hình MỚI"
     echo " [0]  Quay lại Menu Chính"
     echo "--------------------------------------------------------"
-    echo -e "${YELLOW}(Lưu ý: Bạn chọn các số từ 1-4 để thay đổi giá trị cấu hình tương ứng)${NC}\n"
+    echo -e "${YELLOW}(Lưu ý: Bạn chọn các số từ 1-5 để thay đổi giá trị cấu hình tương ứng)${NC}\n"
     
-    read -p "Chọn ID cấu hình bạn muốn thay đổi (0-5): " config_choice
+    read -p "Chọn ID cấu hình bạn muốn thay đổi (0-6): " config_choice
 
     case "$config_choice" in
       1)
@@ -1927,6 +1999,31 @@ configure_environment() {
         ;;
       5)
         echo ""
+        echo -e "${CYAN}--- CẤU HÌNH GỬI EMAIL SMTP ---${NC}"
+        echo -e "${YELLOW}Tính năng này giúp N8N có thể gửi email mời user, báo lỗi hoặc dùng cho node Email Send.${NC}"
+        read -p "Nhập SMTP Host (Vd: smtp.gmail.com): " smtp_host
+        read -p "Nhập SMTP Port (Vd: 465 hoặc 587): " smtp_port
+        read -p "Nhập SMTP User (Email đăng nhập): " smtp_user
+        read -s -p "Nhập SMTP Password (Mật khẩu ứng dụng): " smtp_pass
+        echo ""
+        read -p "Nhập Tên người gửi (Sender/From Email, có thể là email đăng nhập): " smtp_sender
+        
+        if [[ -n "$smtp_host" && -n "$smtp_user" && -n "$smtp_pass" ]]; then
+          run_silent_command "Cập nhật cấu hình SMTP vào N8N" "\
+          update_env_file 'N8N_EMAIL_MODE' 'smtp' && \
+          update_env_file 'N8N_SMTP_HOST' '${smtp_host}' && \
+          update_env_file 'N8N_SMTP_PORT' '${smtp_port:-465}' && \
+          update_env_file 'N8N_SMTP_USER' '${smtp_user}' && \
+          update_env_file 'N8N_SMTP_PASS' '${smtp_pass}' && \
+          update_env_file 'N8N_SMTP_SENDER' '${smtp_sender:-${smtp_user}}'" false
+          echo -e "${GREEN}[+] Đã lưu cấu hình. Hãy nhớ khởi động lại N8N (chọn [6]).${NC}"
+        else
+          echo -e "${RED}[!] Bỏ qua do thiếu thông tin (Host, User hoặc Pass).${NC}"
+        fi
+        sleep 2
+        ;;
+      6)
+        echo ""
         run_silent_command "Đang tải lại Server với Cấu hình Mới!" "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} up -d" false
         echo -e "${GREEN}[+] Hệ thống đã được Recreate với Cấu hình môi trường mới!${NC}"
         sleep 2
@@ -1940,6 +2037,129 @@ configure_environment() {
         ;;
     esac
   done
+}
+
+# ---- src/lib/features/audit.sh ----
+# --- System & Security Audit ---
+
+system_audit() {
+  clear
+  echo -e "${CYAN}=== SYSTEM & SECURITY AUDIT ===${NC}"
+  echo -e "${YELLOW}[*] Đang tiến hành quét lỗ hổng và kiểm tra tài nguyên hệ thống...${NC}\n"
+
+  local issue_count=0
+
+  # 1. Kiểm tra Permission file .env
+  echo -n -e "1. Kiểm tra cấu hình bảo mật (.env): "
+  if [ -f "${ENV_FILE}" ]; then
+    local env_perms
+    env_perms=$(stat -c "%a" "${ENV_FILE}")
+    if [[ "$env_perms" == "777" || "$env_perms" == "666" || "$env_perms" == "644" ]]; then
+      echo -e "${RED}CẢNH BÁO [Mức độ: Cao]${NC}"
+      echo -e "   -> File ${ENV_FILE} đang có quyền ${env_perms} (không an toàn)."
+      echo -e "   -> Đang tự động sửa lỗi (chmod 600)..."
+      sudo chmod 600 "${ENV_FILE}"
+      echo -e "   ${GREEN}[+] Đã fix quyền file .env thành 600.${NC}"
+      issue_count=$((issue_count+1))
+    else
+      echo -e "${GREEN}An toàn (${env_perms})${NC}"
+    fi
+  else
+    echo -e "${YELLOW}Bỏ qua (Chưa cài đặt N8N)${NC}"
+  fi
+
+  # 2. Kiểm tra Dung lượng ổ cứng (Disk Space)
+  echo -n -e "2. Kiểm tra dung lượng ổ đĩa phân vùng gốc (/): "
+  local disk_usage
+  disk_usage=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
+  if [ "$disk_usage" -ge 80 ]; then
+    echo -e "${RED}CẢNH BÁO [Mức độ: Cao]${NC}"
+    echo -e "   -> Ổ đĩa đã sử dụng ${disk_usage}%. Nếu đạt 100%, Database PostgreSQL sẽ Crash!"
+    echo -e "   -> Vui lòng dùng tính năng [16] Dọn rác máy chủ hoặc xóa bớt file thừa."
+    issue_count=$((issue_count+1))
+  else
+    echo -e "${GREEN}Tốt (${disk_usage}%)${NC}"
+  fi
+
+  # 3. Kiểm tra Thời hạn SSL
+  echo -n -e "3. Kiểm tra chứng chỉ SSL/HTTPS: "
+  if [ -f "${ENV_FILE}" ]; then
+    local domain_name
+    domain_name=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
+    if [[ -n "$domain_name" ]]; then
+      local expiry_date
+      expiry_date=$(echo | openssl s_client -servername "${domain_name}" -connect "${domain_name}:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+      if [[ -n "$expiry_date" ]]; then
+        # Chuyển đổi định dạng thời gian để tính toán
+        local expiry_epoch=$(date -d "${expiry_date}" +%s 2>/dev/null || date -D "%b %d %H:%M:%S %Y %Z" -d "${expiry_date}" +%s 2>/dev/null)
+        local current_epoch=$(date +%s)
+        if [[ -n "$expiry_epoch" ]]; then
+          local days_left=$(( (expiry_epoch - current_epoch) / 86400 ))
+          if [ "$days_left" -lt 15 ]; then
+             echo -e "${RED}CẢNH BÁO [Mức độ: Thấp]${NC}"
+             echo -e "   -> SSL cho ${domain_name} sẽ hết hạn trong ${days_left} ngày tới (${expiry_date})."
+             echo -e "   -> Vui lòng gia hạn Let's Encrypt hoặc Cloudflare."
+             issue_count=$((issue_count+1))
+          else
+             echo -e "${GREEN}An toàn (Cấp cho ${domain_name}, còn ${days_left} ngày)${NC}"
+          fi
+        else
+          echo -e "${YELLOW}Không thể tính toán (${expiry_date})${NC}"
+        fi
+      else
+        echo -e "${YELLOW}Không lấy được (Trang web có bật HTTPS không?)${NC}"
+      fi
+    else
+      echo -e "${YELLOW}Bỏ qua (Chưa có tên miền)${NC}"
+    fi
+  else
+    echo -e "${YELLOW}Bỏ qua (Chưa cài đặt N8N)${NC}"
+  fi
+
+  echo -e "\n--------------------------------------------------------"
+  if [ $issue_count -eq 0 ]; then
+    echo -e "${GREEN}[+] Hệ thống hiện tại AN TOÀN và TUYỆT VỜI. Bạn không cần lo lắng gì cả!${NC}"
+  else
+    echo -e "${YELLOW}[!] Phát hiện ${issue_count} rủi ro. Vui lòng kiểm tra lại theo hướng dẫn bên trên.${NC}"
+  fi
+  
+  echo ""
+  read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+}
+
+# ---- src/lib/features/self_update.sh ----
+# --- Tự động cập nhật Script ---
+
+update_script() {
+  clear
+  echo -e "${CYAN}=== CẬP NHẬT N8N CLOUD MANAGER ===${NC}"
+  echo -e "${YELLOW}[*] Hệ thống sẽ tải phiên bản script (n8n-host) mới nhất từ kho lưu trữ của BanhMiSaiGon...${NC}"
+  read -p "Bạn có muốn tiếp tục cập nhật không? (y/n): " confirm
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo "Đã hủy thao tác."
+    sleep 1
+    return 0
+  fi
+
+  # URL thô (raw.githubusercontent.com) của file dist/n8n-host.sh (Sẽ tải trực tiếp script đã build)
+  # Có thể tùy chỉnh link repo tại đây
+  local UPDATE_URL="https://raw.githubusercontent.com/NCHQ02/n8n-script-2026/main/dist/n8n-host.sh"
+  local TEMP_FILE="/tmp/n8n-host-update.sh"
+
+  echo -e "\nĐang tải xuống phiên bản mới nhất..."
+  if curl -sSL --fail "$UPDATE_URL" -o "$TEMP_FILE"; then
+    echo -e "${GREEN}[+] Tải thành công. Đang ghi đè file hiện tại...${NC}"
+    sudo mv "$TEMP_FILE" "$INSTALL_PATH"
+    sudo chmod +x "$INSTALL_PATH"
+    echo -e "${GREEN}[+] Đã Cập nhật xong N8N Cloud Manager.${NC}"
+    echo -e "${YELLOW}Vui lòng chạy lại lệnh 'n8n-host' để trải nghiệm phiên bản mới nhất!${NC}\n"
+    exit 0
+  else
+    echo -e "${RED}[!] Không thể tải phiên bản mới. Kiểm tra kết nối Internet hoặc link Repo Repository Github.${NC}"
+    sudo rm -f "$TEMP_FILE"
+    echo ""
+    read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
+  fi
 }
 
 # ---- src/main.sh ----
@@ -1974,6 +2194,11 @@ if [[ "$1" == "--uninstall" ]]; then
     uninstall
 fi
 
+if [[ "$1" == "--backup-cron" ]]; then
+    run_auto_backup
+    exit 0
+fi
+
 # --- Hiển thị Menu Chính ---
 show_menu() {
   clear
@@ -1999,12 +2224,14 @@ show_menu() {
   echo -e "\n ${YELLOW}[ 3. DỮ LIỆU & SAO LƯU ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "7)" "Export (Tải Workflows & Credential)" "8)" "Import (Phục hồi Workflows/Creds)"
   printf " %-3s %-35s %-3s %s\n" "9)" "Siêu Backup (Toàn bộ Server -> Zip)" "10)" "Khôi phục toàn bộ hệ thống từ Zip"
+  printf " %-3s %-35s\n" "11)" "Cấu hình Auto-Backup theo lịch (Cron)"
 
   # Nhóm 4: Hệ thống & Logs
   echo -e "\n ${YELLOW}[ 4. QUẢN TRỊ HỆ THỐNG ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "11)" "Xem Thông tin tài khoản Redis" "12)" "Xem Thông tin tài khoản Database"
-  printf " %-3s %-35s %-3s %s\n" "13)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "14)" "Khởi động lại (Restart N8N Container)"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "15)" "Xem Error Logs N8N (Terminal)" "16)" "Dọn rác máy chủ (Docker Prune)"
+  printf " %-3s %-35s %-3s %s\n" "12)" "Xem Thông tin tài khoản Redis" "13)" "Xem Thông tin tài khoản Database"
+  printf " %-3s %-35s %-3s %s\n" "14)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "15)" "Khởi động lại (Restart N8N Container)"
+  printf " %-3s %-35s %-3s %s\n" "16)" "Xem Error Logs N8N (Terminal)" "17)" "Dọn rác máy chủ (Docker Prune)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "18)" "System & Security Audit" "19)" "Cập nhật N8N Cloud Manager"
 
   # Nhóm Nguy hiểm
   echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
@@ -2028,12 +2255,15 @@ while true; do
     8) import_data ;;
     9) backup_server ;;
     10) restore_server ;;
-    11) get_redis_info ;;
-    12) get_database_info ;;
-    13) show_status ;;
-    14) restart_services ;;
-    15) view_logs ;;
-    16) docker_prune ;;
+    11) configure_auto_backup ;;
+    12) get_redis_info ;;
+    13) get_database_info ;;
+    14) show_status ;;
+    15) restart_services ;;
+    16) view_logs ;;
+    17) docker_prune ;;
+    18) system_audit ;;
+    19) update_script ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - BanhMiSaiGon mãi iu Bạn!"

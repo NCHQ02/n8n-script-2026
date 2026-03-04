@@ -23,12 +23,13 @@ configure_environment() {
     echo "> [3] Giới hạn dung lượng tải: ${payload_size:-'Không xác định'} (Mặc định N8N: 16MB)"
     echo "> [4] Tự động xóa lịch sử:     ${execution_prune:-'false'} (Tắt là false)"
     echo "--------------------------------------------------------"
-    echo " [5]  Khởi động lại (Restart) N8N để áp dụng cấu hình MỚI"
+    echo " [5]  Cấu hình hệ thống Email (SMTP) cho N8N"
+    echo " [6]  Khởi động lại (Restart) N8N để áp dụng cấu hình MỚI"
     echo " [0]  Quay lại Menu Chính"
     echo "--------------------------------------------------------"
-    echo -e "${YELLOW}(Lưu ý: Bạn chọn các số từ 1-4 để thay đổi giá trị cấu hình tương ứng)${NC}\n"
+    echo -e "${YELLOW}(Lưu ý: Bạn chọn các số từ 1-5 để thay đổi giá trị cấu hình tương ứng)${NC}\n"
     
-    read -p "Chọn ID cấu hình bạn muốn thay đổi (0-5): " config_choice
+    read -p "Chọn ID cấu hình bạn muốn thay đổi (0-6): " config_choice
 
     case "$config_choice" in
       1)
@@ -76,6 +77,31 @@ configure_environment() {
         sleep 1
         ;;
       5)
+        echo ""
+        echo -e "${CYAN}--- CẤU HÌNH GỬI EMAIL SMTP ---${NC}"
+        echo -e "${YELLOW}Tính năng này giúp N8N có thể gửi email mời user, báo lỗi hoặc dùng cho node Email Send.${NC}"
+        read -p "Nhập SMTP Host (Vd: smtp.gmail.com): " smtp_host
+        read -p "Nhập SMTP Port (Vd: 465 hoặc 587): " smtp_port
+        read -p "Nhập SMTP User (Email đăng nhập): " smtp_user
+        read -s -p "Nhập SMTP Password (Mật khẩu ứng dụng): " smtp_pass
+        echo ""
+        read -p "Nhập Tên người gửi (Sender/From Email, có thể là email đăng nhập): " smtp_sender
+        
+        if [[ -n "$smtp_host" && -n "$smtp_user" && -n "$smtp_pass" ]]; then
+          run_silent_command "Cập nhật cấu hình SMTP vào N8N" "\
+          update_env_file 'N8N_EMAIL_MODE' 'smtp' && \
+          update_env_file 'N8N_SMTP_HOST' '${smtp_host}' && \
+          update_env_file 'N8N_SMTP_PORT' '${smtp_port:-465}' && \
+          update_env_file 'N8N_SMTP_USER' '${smtp_user}' && \
+          update_env_file 'N8N_SMTP_PASS' '${smtp_pass}' && \
+          update_env_file 'N8N_SMTP_SENDER' '${smtp_sender:-${smtp_user}}'" false
+          echo -e "${GREEN}[+] Đã lưu cấu hình. Hãy nhớ khởi động lại N8N (chọn [6]).${NC}"
+        else
+          echo -e "${RED}[!] Bỏ qua do thiếu thông tin (Host, User hoặc Pass).${NC}"
+        fi
+        sleep 2
+        ;;
+      6)
         echo ""
         run_silent_command "Đang tải lại Server với Cấu hình Mới!" "cd ${N8N_DIR} && ${DOCKER_COMPOSE_CMD} up -d" false
         echo -e "${GREEN}[+] Hệ thống đã được Recreate với Cấu hình môi trường mới!${NC}"

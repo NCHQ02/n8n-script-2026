@@ -30,6 +30,11 @@ if [[ "$1" == "--uninstall" ]]; then
     uninstall
 fi
 
+if [[ "$1" == "--backup-cron" ]]; then
+    run_auto_backup
+    exit 0
+fi
+
 # --- Hiển thị Menu Chính ---
 show_menu() {
   clear
@@ -55,12 +60,14 @@ show_menu() {
   echo -e "\n ${YELLOW}[ 3. DỮ LIỆU & SAO LƯU ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "7)" "Export (Tải Workflows & Credential)" "8)" "Import (Phục hồi Workflows/Creds)"
   printf " %-3s %-35s %-3s %s\n" "9)" "Siêu Backup (Toàn bộ Server -> Zip)" "10)" "Khôi phục toàn bộ hệ thống từ Zip"
+  printf " %-3s %-35s\n" "11)" "Cấu hình Auto-Backup theo lịch (Cron)"
 
   # Nhóm 4: Hệ thống & Logs
   echo -e "\n ${YELLOW}[ 4. QUẢN TRỊ HỆ THỐNG ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "11)" "Xem Thông tin tài khoản Redis" "12)" "Xem Thông tin tài khoản Database"
-  printf " %-3s %-35s %-3s %s\n" "13)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "14)" "Khởi động lại (Restart N8N Container)"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "15)" "Xem Error Logs N8N (Terminal)" "16)" "Dọn rác máy chủ (Docker Prune)"
+  printf " %-3s %-35s %-3s %s\n" "12)" "Xem Thông tin tài khoản Redis" "13)" "Xem Thông tin tài khoản Database"
+  printf " %-3s %-35s %-3s %s\n" "14)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "15)" "Khởi động lại (Restart N8N Container)"
+  printf " %-3s %-35s %-3s %s\n" "16)" "Xem Error Logs N8N (Terminal)" "17)" "Dọn rác máy chủ (Docker Prune)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "18)" "System & Security Audit" "19)" "Cập nhật N8N Cloud Manager"
 
   # Nhóm Nguy hiểm
   echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
@@ -84,12 +91,15 @@ while true; do
     8) import_data ;;
     9) backup_server ;;
     10) restore_server ;;
-    11) get_redis_info ;;
-    12) get_database_info ;;
-    13) show_status ;;
-    14) restart_services ;;
-    15) view_logs ;;
-    16) docker_prune ;;
+    11) configure_auto_backup ;;
+    12) get_redis_info ;;
+    13) get_database_info ;;
+    14) show_status ;;
+    15) restart_services ;;
+    16) view_logs ;;
+    17) docker_prune ;;
+    18) system_audit ;;
+    19) update_script ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - BanhMiSaiGon mãi iu Bạn!"

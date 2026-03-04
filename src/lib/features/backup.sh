@@ -270,3 +270,74 @@ restore_server() {
   echo ""
   read -n 1 -s -r -p "Nhấn phím bất kỳ để quay lại menu..."
 }
+
+# Chạy Backup tự động không cần prompt (Dành cho Cronjob)
+run_auto_backup() {
+  if [ ! -d "$N8N_DIR" ]; then exit 1; fi
+  
+  mkdir -p "$BACKUP_DIR"
+  local timestamp=$(date +%Y%m%d_%H%M%S)
+  local current_backup_dir="${BACKUP_DIR}/n8n_backup_${timestamp}"
+  sudo mkdir -p "${current_backup_dir}"
+  
+  # 1. Export Credentials & Workflows
+  local container_temp_export_dir="/home/node/.n8n/temp_export_$$"
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_export_dir}"
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:credentials --all --output="${container_temp_export_dir}/credentials.json" &>/dev/null || true
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:workflow --all --output="${container_temp_export_dir}/workflows.json" &>/dev/null || true
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/credentials.json" "${current_backup_dir}/credentials.json" &>/dev/null || true
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/workflows.json" "${current_backup_dir}/workflows.json" &>/dev/null || true
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_export_dir}" &>/dev/null || true
+
+  # 2. Database PostgreSQL
+  local db_user=$(grep "^POSTGRES_USER=" "${ENV_FILE}" | cut -d'=' -f2)
+  local db_name=$(grep "^POSTGRES_DB=" "${ENV_FILE}" | cut -d'=' -f2)
+  if [[ -n "$db_user" && -n "$db_name" ]]; then
+      sudo docker exec n8n_postgres pg_dump -U "$db_user" -d "$db_name" -F c -f "/tmp/database.dump" &>/dev/null || true
+      sudo docker cp "n8n_postgres:/tmp/database.dump" "${current_backup_dir}/database.dump" &>/dev/null || true
+      sudo docker exec n8n_postgres rm -f "/tmp/database.dump" &>/dev/null || true
+  fi
+
+  # 3. Config
+  sudo cp "${N8N_DIR}/.env" "${current_backup_dir}/" &>/dev/null || true
+  sudo cp "${N8N_DIR}/docker-compose.yml" "${current_backup_dir}/" &>/dev/null || true
+  
+  # 4. Gom lại thành file zip
+  local backup_filename="n8n_full_backup_${timestamp}.tar.gz"
+  local final_backup_file="${BACKUP_DIR}/${backup_filename}"
+  cd ${BACKUP_DIR} && tar -czf ${final_backup_file} $(basename ${current_backup_dir}) 2>/dev/null
+  sudo rm -rf "${current_backup_dir}"
+
+  # 5. Xoá các bản backup cũ, chỉ giữ 7 bản gần nhất
+  ls -1tr ${BACKUP_DIR}/n8n_full_backup_*.tar.gz 2>/dev/null | head -n -7 | xargs -r rm -f
+}
+
+# Cấu hình cài đặt Cronjob Backup
+configure_auto_backup() {
+  clear
+  echo -e "${CYAN}=== CẤU HÌNH AUTO-BACKUP THEO LỊCH ===${NC}"
+  echo -e "${YELLOW}Chức năng này sẽ tạo Cronjob tự động backup N8N vào lúc 0:00 mỗi ngày.${NC}"
+  echo -e "${YELLOW}Chỉ giữ lại 7 bản backup gần nhất để tránh đầy ổ cứng.${NC}"
+  echo ""
+  
+  # Kiểm tra xem đang bật hay tắt
+  if crontab -l 2>/dev/null | grep -q "${INSTALL_PATH} --backup-cron"; then
+      echo -e "Trạng thái hiện tại: ${GREEN}ĐANG BẬT (ON)${NC}"
+  else
+      echo -e "Trạng thái hiện tại: ${RED}ĐANG TẮT (OFF)${NC}"
+  fi
+  echo "--------------------------------------------------------"
+
+  read -p "Bạn muốn ON (Bật) hay OFF (Tắt) chức năng này? (nhập on/off/hủy): " confirm
+  if [[ "$confirm" == "on" || "$confirm" == "ON" ]]; then
+    (crontab -l 2>/dev/null | grep -v "${INSTALL_PATH} --backup-cron") | crontab -
+    (crontab -l 2>/dev/null; echo "0 0 * * * ${INSTALL_PATH} --backup-cron > /dev/null 2>&1") | crontab -
+    echo -e "${GREEN}[+] Đã thiết lập Auto-Backup vào lúc 0:00 mỗi ngày thành công!${NC}"
+  elif [[ "$confirm" == "off" || "$confirm" == "OFF" ]]; then
+    (crontab -l 2>/dev/null | grep -v "${INSTALL_PATH} --backup-cron") | crontab -
+    echo -e "${GREEN}[+] Đã TẮT Auto-Backup thành công!${NC}"
+  else
+    echo "Đã hủy thao tác."
+  fi
+  sleep 2
+}

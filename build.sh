@@ -21,6 +21,8 @@ SOURCES=(
   "src/lib/features/cleanup.sh"
   "src/lib/features/backup.sh"
   "src/lib/features/config.sh"
+  "src/lib/features/audit.sh"
+  "src/lib/features/self_update.sh"
   "src/main.sh"
 )
 
