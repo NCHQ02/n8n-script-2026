@@ -2932,7 +2932,7 @@ show_menu() {
   echo -e " ${YELLOW}[ 1. CÀI ĐẶT & CƠ BẢN ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "1)" "Cài đặt N8N mới" "2)" "Thay đổi Tên miền truy cập"
   printf " %-3s %-35s %-3s %s\n" "3)" "Nâng cấp phiên bản N8N" "4)" "Cấu hình Môi trường (Timezone,...)"
-  printf " %-3s %-35s\n" "21)" "${CYAN}Cấu hình Cloudflare Tunnel (Cho Localhost/Homelab)${NC}"
+  printf " %-3s %-35s\n" "21)" "Cấu hình Cloudflare Tunnel (Local)"
 
   # Nhóm 2: Tài khoản & Bảo mật
   echo -e "\n ${YELLOW}[ 2. TÀI KHOẢN & BẢO MẬT ]${NC}"
