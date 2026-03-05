@@ -39,6 +39,7 @@ show_help() {
     echo "  --redis-info        Lấy thông tin đăng nhập Redis"
     echo "  --db-info           Lấy thông tin đăng nhập PostgreSQL"
     echo "  --setup-cron        Cấu hình Auto-Backup theo lịch (kết hợp --value on/off)"
+    echo "  --setup-tunnel      Cấu hình Cloudflare Tunnel kết nối Localhost ra Internet"
     echo "  --path <str>        Truyền đường dẫn thư mục"
     echo "  --file <str>        Truyền đường dẫn tập tin"
     echo "  --id <str>          Truyền ID (cho Marketplace)"
@@ -92,6 +93,7 @@ while [[ $# -gt 0 ]]; do
     --redis-info) CLI_ACTION="redis-info"; shift ;;
     --db-info) CLI_ACTION="db-info"; shift ;;
     --setup-cron) CLI_ACTION="setup-cron"; shift ;;
+    --setup-tunnel) CLI_ACTION="setup-tunnel"; shift ;;
     --uninstall) uninstall; exit 0 ;;
     --help) show_help ;;
     --backup-cron) run_auto_backup; exit 0 ;;
@@ -123,6 +125,7 @@ if [[ -n "$CLI_ACTION" ]]; then
     redis-info) get_redis_info ;;
     db-info) get_database_info ;;
     setup-cron) configure_auto_backup ;;
+    setup-tunnel) setup_cloudflare_tunnel ;;
   esac
   exit 0
 fi
@@ -144,7 +147,8 @@ show_menu() {
   echo -e " ${YELLOW}[ 1. CÀI ĐẶT & CƠ BẢN ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "1)" "Cài đặt N8N mới" "2)" "Thay đổi Tên miền truy cập"
   printf " %-3s %-35s %-3s %s\n" "3)" "Nâng cấp phiên bản N8N" "4)" "Cấu hình Môi trường (Timezone,...)"
-  
+  printf " %-3s %-35s\n" "21)" "${CYAN}Cấu hình Cloudflare Tunnel (Cho Localhost/Homelab)${NC}"
+
   # Nhóm 2: Tài khoản & Bảo mật
   echo -e "\n ${YELLOW}[ 2. TÀI KHOẢN & BẢO MẬT ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "5)" "Tắt/Bật xác thực 2 bước (2FA/MFA)" "6)" "Đặt lại mật khẩu Quản trị viên"
@@ -194,6 +198,7 @@ while true; do
     18) docker_prune ;;
     19) system_audit ;;
     20) update_script ;;
+    21) setup_cloudflare_tunnel ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - NCHQ02 mãi iu Bạn!"

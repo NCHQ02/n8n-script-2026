@@ -24,6 +24,7 @@ SOURCES=(
   "src/lib/features/audit.sh"
   "src/lib/features/self_update.sh"
   "src/lib/features/marketplace.sh"
+  "src/lib/features/cloudflare.sh"
   "src/main.sh"
 )
 

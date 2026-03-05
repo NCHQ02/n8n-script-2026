@@ -250,6 +250,18 @@ get_domain_and_dns_check_reusable() {
 
   trap 'echo -e "\n${YELLOW}Huỷ bỏ nhập tên miền.${NC}"; return 1;' SIGINT SIGTERM
 
+  echo -e "${CYAN}---> Cài đặt hệ thống trên VPS Public hay Localhost/Homelab?${NC}"
+  echo -e " 1) VPS Public (Check IP, trỏ Domain, lấy SSL thật của Let's Encrypt)"
+  echo -e " 2) Localhost / Homelab (Domain local, HTTPS thông qua Cloudflare Tunnel)"
+  local env_choice
+  read -p "$(echo -e ${CYAN}'Nhập lựa chọn của bạn (1-2) [Mặc định: 1]: '${NC})" env_choice
+  if [[ "$env_choice" == "2" ]]; then
+      echo -e "${GREEN}[+] Đã thiết lập mode Localhost.${NC}"
+      printf -v "$result_var_name" "%s" "localhost"
+      trap - SIGINT SIGTERM
+      return 0
+  fi
+
   echo -e "${CYAN}---> Nhập thông tin tên miền (Nhấn Ctrl+C để huỷ)...${NC}"
   local new_domain_input
   local server_ip
@@ -600,6 +612,48 @@ configure_nginx_and_ssl() {
 
   local nginx_conf_file="/etc/nginx/sites-available/${domain_name}.conf"
 
+  if [[ "$domain_name" == "localhost" ]]; then
+    stop_spinner
+    echo -e "${YELLOW}Chạy chế độ Localhost/Tunnel. Bỏ qua cấu hình SSL Let's Encrypt.${NC}"
+    start_spinner "Cấu hình Nginx HTTP cho Localhost..."
+
+    run_silent_command "Tạo cấu hình Nginx cơ bản (HTTP)" \
+    "bash -c \"cat > ${nginx_conf_file}\" <<EOF
+server {
+    listen 80;
+    server_name localhost;
+
+    include ${NGINX_EXPORT_INCLUDE_DIR}/${NGINX_EXPORT_INCLUDE_FILE_BASENAME}_*.conf;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://127.0.0.1:5678;
+        proxy_set_header Host \\\$host;
+        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\\$scheme;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \\\$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 7200s;
+        proxy_send_timeout 7200s;
+    }
+}
+EOF" "false" || return 1
+
+    sudo ln -sfn "${nginx_conf_file}" "/etc/nginx/sites-enabled/${domain_name}.conf"
+    run_silent_command "Kiểm tra cấu hình Nginx HTTP" "nginx -t" "false" || return 1
+    sudo systemctl reload nginx >/dev/null 2>&1
+    stop_spinner
+    echo -e "${GREEN}Cấu hình Nginx Localhost hoàn tất (HTTPS xử lý bởi Tunnel).${NC}"
+    return 0
+  fi
+
   sudo mkdir -p "${webroot_path}/.well-known/acme-challenge"
   sudo chown www-data:www-data "${webroot_path}" -R
 
@@ -741,7 +795,12 @@ final_checks_and_message() {
 
   if [[ "$http_status" == "200" ]]; then
     echo -e "${GREEN}N8N Cloud đã được cài đặt thành công!${NC}"
-    echo -e "Bạn có thể truy cập n8n tại: ${GREEN}https://${domain_name}${NC}"
+    if [[ "$domain_name" == "localhost" ]]; then
+      echo -e "Bạn có thể truy cập n8n local tại: ${GREEN}http://localhost${NC}"
+      echo -e "${CYAN}Gợi ý: Hãy dùng tính năng Cloudflare Tunnel trong menu để truy cập từ ngoài Internet.${NC}"
+    else
+      echo -e "Bạn có thể truy cập n8n tại: ${GREEN}https://${domain_name}${NC}"
+    fi
   else
     echo -e "${RED}Lỗi! Không thể truy cập n8n tại https://${domain_name} (HTTP Status: ${http_status}).${NC}"
     echo -e "${YELLOW}Vui lòng kiểm tra các bước sau:${NC}"
@@ -2566,6 +2625,164 @@ open_marketplace() {
   done
 }
 
+# ---- src/lib/features/cloudflare.sh ----
+# --- Hàm Cloudflare Tunnel ---
+setup_cloudflare_tunnel() {
+    check_root
+    echo -e "\n${CYAN}--- Cấu hình Cloudflare Tunnel (Cho Localhost/Homelab) ---${NC}"
+
+    if [[ ! -f "${ENV_FILE}" ]]; then
+        echo -e "${RED}Lỗi: Không tìm thấy file cấu hình ${ENV_FILE}.${NC}"
+        echo -e "${YELLOW}Vui lòng cài đặt hệ thống N8N ở chế độ Localhost trước.${NC}"
+        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
+        return 0
+    fi
+
+    # 1. Cài đặt cloudflared nếu chưa có
+    if ! command_exists cloudflared; then
+        start_spinner "Đang cài đặt cloudflared (Cloudflare Tunnel Client)..."
+        local arch
+        arch=$(dpkg --print-architecture)
+        if [[ "$arch" == "amd64" ]]; then
+            curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+        elif [[ "$arch" == "arm64" ]]; then
+            curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb -o cloudflared.deb
+        elif [[ "$arch" == "armhf" ]]; then
+            curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-armhf.deb -o cloudflared.deb
+        else
+            stop_spinner
+            echo -e "${RED}Kiến trúc $arch không được hỗ trợ tự động. Vui lòng cài đặt thủ công.${NC}"
+            return 1
+        fi
+        
+        sudo dpkg -i cloudflared.deb > /dev/null 2>&1
+        rm -f cloudflared.deb
+        
+        if ! command_exists cloudflared; then
+            stop_spinner
+            echo -e "${RED}Cài đặt cloudflared thất bại.${NC}"
+            return 1
+        fi
+        stop_spinner
+        echo -e "${GREEN}[+] Đã cài đặt cloudflared thành công.${NC}"
+    fi
+
+    # Kiểm tra chứng chỉ login
+    if [[ ! -d "/root/.cloudflared" || -z "$(ls -A /root/.cloudflared/*.pem 2>/dev/null)" ]]; then
+        echo -e "\n${YELLOW}[!] Bạn chưa đăng nhập Cloudflare Tunnel.${NC}"
+        echo -e "Hãy sao chép đường link bên dưới, dán vào trình duyệt và chọn Domain bạn đang quản lý trên Cloudflare."
+        echo -e "Chờ sau khi Authorization Success trên trình duyệt mới nhấn phím bất kỳ ở đây."
+        
+        # Chạy lệnh login interactive
+        sudo cloudflared tunnel login
+
+        echo -e "${GREEN}[+] Xác thực xong.${NC}"
+    else
+         echo -e "${GREEN}[+] Bỏ qua đăng nhập (Đã có chứng chỉ Cloudflare Account).${NC}"
+    fi
+
+    # Kiểm tra tunnel hiện tại
+    local tunnel_name="n8n-tunnel"
+    local tunnel_uuid=""
+
+    # 2. Xóa tunnel cũ nếu có
+    if sudo cloudflared tunnel list | grep -q "$tunnel_name"; then
+        echo -e "${YELLOW}Tunnel '$tunnel_name' đã tồn tại.${NC}"
+        read -p "$(echo -e ${CYAN}'Bạn có muốn xóa Tunnel cũ và tạo lại? (y/n) [n]: '${NC})" choice_recreate
+        if [[ "$choice_recreate" == "y" || "$choice_recreate" == "Y" ]]; then
+            sudo cloudflared tunnel cleanup "$tunnel_name" &>/dev/null
+            sudo cloudflared tunnel delete "$tunnel_name" &>/dev/null
+            sudo rm -f "/root/.cloudflared/${tunnel_name}.json"
+            echo -e "${GREEN}[+] Đã xóa Tunnel cũ.${NC}"
+        else
+            echo -e "${YELLOW}Hủy thao tác cài đặt Tunnel.${NC}"
+            if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
+            return 0
+        fi
+    fi
+
+    echo -e "\n${CYAN}Bắt đầu tạo Tunnel mới...${NC}"
+    
+    # Lấy UUID sau khi tạo
+    local create_output
+    create_output=$(sudo cloudflared tunnel create "$tunnel_name" 2>&1)
+    if echo "$create_output" | grep -q "Created tunnel"; then
+        tunnel_uuid=$(echo "$create_output" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+        echo -e "${GREEN}[+] Đã tạo Tunnel thành công. UUID: ${tunnel_uuid}${NC}"
+    else
+        echo -e "${RED}Lỗi khi tạo tunnel:${NC}"
+        echo "$create_output"
+        return 1
+    fi
+
+    # 3. Yêu cầu nhập domain
+    local public_domain=""
+    if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_DOMAIN" ]]; then
+         public_domain="$CLI_DOMAIN"
+    else
+         while true; do
+            read -p "$(echo -e ${CYAN}'Nhập tên miền public (VD: n8n.domain.com) để trỏ Tunnel: '${NC})" public_domain
+            if [[ -z "$public_domain" ]]; then
+                echo -e "${RED}Tên miền không được để trống.${NC}"
+            else
+                break
+            fi
+         done
+    fi
+
+    start_spinner "Tạo DNS Route cho ${public_domain} trên tài khoản Cloudflare..."
+    if ! sudo cloudflared tunnel route dns "$tunnel_name" "$public_domain" >/dev/null 2>&1; then
+        stop_spinner
+        echo -e "${YELLOW}Có thể DNS đã tồn tại. Thử ghi chép đè...${NC}"
+        sudo cloudflared tunnel route dns -f "$tunnel_name" "$public_domain" >/dev/null 2>&1
+    fi
+    stop_spinner
+    echo -e "${GREEN}[+] Trỏ DNS thành công.${NC}"
+
+    # Cập nhật file .env cho chuẩn lại tên miền webhook của N8N
+    update_env_file "DOMAIN_NAME" "$public_domain"
+
+    # 4. Ghi cấu hình config.yml
+    start_spinner "Lưu cấu hình config.yml cho Tunnel..."
+    sudo mkdir -p /etc/cloudflared
+    sudo bash -c "cat > /etc/cloudflared/config.yml" <<EOF
+tunnel: ${tunnel_uuid}
+credentials-file: /root/.cloudflared/${tunnel_uuid}.json
+
+ingress:
+  - hostname: ${public_domain}
+    service: http://127.0.0.1:80
+  - service: http_status:404
+EOF
+    stop_spinner
+
+    # 5. Cài đặt thành Service và chạy
+    start_spinner "Cài đặt & khởi động bộ định tuyến hệ thống..."
+    sudo cloudflared service uninstall &>/dev/null
+    sudo cloudflared service install &>/dev/null
+    sudo systemctl enable cloudflared &>/dev/null
+    sudo systemctl restart cloudflared &>/dev/null
+    
+    # Khởi động lại Nginx và N8N Docker để lấy tên miền public nhận webhook chuẩn
+    sudo systemctl restart nginx &>/dev/null
+    pushd "${N8N_DIR}" > /dev/null
+    sudo $DOCKER_COMPOSE_CMD up -d --force-recreate &>/dev/null
+    popd > /dev/null
+
+    stop_spinner
+
+    echo -e "\n${GREEN}===================================================${NC}"
+    echo -e "${GREEN}      Thiết lập Cloudflare Tunnel Hoàn Tất!       ${NC}"
+    echo -e "${GREEN}===================================================${NC}"
+    echo -e "Bây giờ bạn có thể truy cập hệ thống tại: ${CYAN}https://${public_domain}${NC}"
+    echo -e "N8N Webhook sẽ tự sinh với IP đúng của domain này."
+    
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
+        read -r
+    fi
+}
+
 # ---- src/main.sh ----
 uninstall() {
     echo -e "\n${YELLOW}[*] Đang kiểm tra và gỡ bỏ công cụ tại: ${INSTALL_PATH}${NC}"
@@ -2607,6 +2824,7 @@ show_help() {
     echo "  --redis-info        Lấy thông tin đăng nhập Redis"
     echo "  --db-info           Lấy thông tin đăng nhập PostgreSQL"
     echo "  --setup-cron        Cấu hình Auto-Backup theo lịch (kết hợp --value on/off)"
+    echo "  --setup-tunnel      Cấu hình Cloudflare Tunnel kết nối Localhost ra Internet"
     echo "  --path <str>        Truyền đường dẫn thư mục"
     echo "  --file <str>        Truyền đường dẫn tập tin"
     echo "  --id <str>          Truyền ID (cho Marketplace)"
@@ -2660,6 +2878,7 @@ while [[ $# -gt 0 ]]; do
     --redis-info) CLI_ACTION="redis-info"; shift ;;
     --db-info) CLI_ACTION="db-info"; shift ;;
     --setup-cron) CLI_ACTION="setup-cron"; shift ;;
+    --setup-tunnel) CLI_ACTION="setup-tunnel"; shift ;;
     --uninstall) uninstall; exit 0 ;;
     --help) show_help ;;
     --backup-cron) run_auto_backup; exit 0 ;;
@@ -2691,6 +2910,7 @@ if [[ -n "$CLI_ACTION" ]]; then
     redis-info) get_redis_info ;;
     db-info) get_database_info ;;
     setup-cron) configure_auto_backup ;;
+    setup-tunnel) setup_cloudflare_tunnel ;;
   esac
   exit 0
 fi
@@ -2712,7 +2932,8 @@ show_menu() {
   echo -e " ${YELLOW}[ 1. CÀI ĐẶT & CƠ BẢN ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "1)" "Cài đặt N8N mới" "2)" "Thay đổi Tên miền truy cập"
   printf " %-3s %-35s %-3s %s\n" "3)" "Nâng cấp phiên bản N8N" "4)" "Cấu hình Môi trường (Timezone,...)"
-  
+  printf " %-3s %-35s\n" "21)" "${CYAN}Cấu hình Cloudflare Tunnel (Cho Localhost/Homelab)${NC}"
+
   # Nhóm 2: Tài khoản & Bảo mật
   echo -e "\n ${YELLOW}[ 2. TÀI KHOẢN & BẢO MẬT ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "5)" "Tắt/Bật xác thực 2 bước (2FA/MFA)" "6)" "Đặt lại mật khẩu Quản trị viên"
@@ -2762,6 +2983,7 @@ while true; do
     18) docker_prune ;;
     19) system_audit ;;
     20) update_script ;;
+    21) setup_cloudflare_tunnel ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - NCHQ02 mãi iu Bạn!"

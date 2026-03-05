@@ -88,6 +88,18 @@ get_domain_and_dns_check_reusable() {
 
   trap 'echo -e "\n${YELLOW}Huỷ bỏ nhập tên miền.${NC}"; return 1;' SIGINT SIGTERM
 
+  echo -e "${CYAN}---> Cài đặt hệ thống trên VPS Public hay Localhost/Homelab?${NC}"
+  echo -e " 1) VPS Public (Check IP, trỏ Domain, lấy SSL thật của Let's Encrypt)"
+  echo -e " 2) Localhost / Homelab (Domain local, HTTPS thông qua Cloudflare Tunnel)"
+  local env_choice
+  read -p "$(echo -e ${CYAN}'Nhập lựa chọn của bạn (1-2) [Mặc định: 1]: '${NC})" env_choice
+  if [[ "$env_choice" == "2" ]]; then
+      echo -e "${GREEN}[+] Đã thiết lập mode Localhost.${NC}"
+      printf -v "$result_var_name" "%s" "localhost"
+      trap - SIGINT SIGTERM
+      return 0
+  fi
+
   echo -e "${CYAN}---> Nhập thông tin tên miền (Nhấn Ctrl+C để huỷ)...${NC}"
   local new_domain_input
   local server_ip
@@ -438,6 +450,48 @@ configure_nginx_and_ssl() {
 
   local nginx_conf_file="/etc/nginx/sites-available/${domain_name}.conf"
 
+  if [[ "$domain_name" == "localhost" ]]; then
+    stop_spinner
+    echo -e "${YELLOW}Chạy chế độ Localhost/Tunnel. Bỏ qua cấu hình SSL Let's Encrypt.${NC}"
+    start_spinner "Cấu hình Nginx HTTP cho Localhost..."
+
+    run_silent_command "Tạo cấu hình Nginx cơ bản (HTTP)" \
+    "bash -c \"cat > ${nginx_conf_file}\" <<EOF
+server {
+    listen 80;
+    server_name localhost;
+
+    include ${NGINX_EXPORT_INCLUDE_DIR}/${NGINX_EXPORT_INCLUDE_FILE_BASENAME}_*.conf;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://127.0.0.1:5678;
+        proxy_set_header Host \\\$host;
+        proxy_set_header X-Real-IP \\\$remote_addr;
+        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\\$scheme;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \\\$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 7200s;
+        proxy_send_timeout 7200s;
+    }
+}
+EOF" "false" || return 1
+
+    sudo ln -sfn "${nginx_conf_file}" "/etc/nginx/sites-enabled/${domain_name}.conf"
+    run_silent_command "Kiểm tra cấu hình Nginx HTTP" "nginx -t" "false" || return 1
+    sudo systemctl reload nginx >/dev/null 2>&1
+    stop_spinner
+    echo -e "${GREEN}Cấu hình Nginx Localhost hoàn tất (HTTPS xử lý bởi Tunnel).${NC}"
+    return 0
+  fi
+
   sudo mkdir -p "${webroot_path}/.well-known/acme-challenge"
   sudo chown www-data:www-data "${webroot_path}" -R
 
@@ -579,7 +633,12 @@ final_checks_and_message() {
 
   if [[ "$http_status" == "200" ]]; then
     echo -e "${GREEN}N8N Cloud đã được cài đặt thành công!${NC}"
-    echo -e "Bạn có thể truy cập n8n tại: ${GREEN}https://${domain_name}${NC}"
+    if [[ "$domain_name" == "localhost" ]]; then
+      echo -e "Bạn có thể truy cập n8n local tại: ${GREEN}http://localhost${NC}"
+      echo -e "${CYAN}Gợi ý: Hãy dùng tính năng Cloudflare Tunnel trong menu để truy cập từ ngoài Internet.${NC}"
+    else
+      echo -e "Bạn có thể truy cập n8n tại: ${GREEN}https://${domain_name}${NC}"
+    fi
   else
     echo -e "${RED}Lỗi! Không thể truy cập n8n tại https://${domain_name} (HTTP Status: ${http_status}).${NC}"
     echo -e "${YELLOW}Vui lòng kiểm tra các bước sau:${NC}"
