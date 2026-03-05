@@ -28,20 +28,85 @@ n8n-host
 
 ---
 
-## 📋 Các tính năng
+## 📋 Các tính năng (Menu Tương Tác)
 
-| Số    | Chức năng         | Mô tả                                                         |
-| ----- | ----------------- | ------------------------------------------------------------- |
-| **1** | Cài đặt N8N       | Cài đặt đầy đủ N8N với Docker, PostgreSQL, Redis, Nginx + SSL |
-| **2** | Thay đổi tên miền | Đổi domain và tự động cấp lại chứng chỉ SSL                   |
-| **3** | Nâng cấp N8N      | Pull image `latest` mới nhất từ Docker Hub                    |
-| **4** | Tắt 2FA/MFA       | Tắt xác thực 2 bước cho một tài khoản cụ thể                  |
-| **5** | Đặt lại đăng nhập | Reset tài khoản owner để đăng nhập lại từ đầu                 |
-| **6** | Export dữ liệu    | Xuất workflows & credentials, tạo link tải xuống tạm thời     |
-| **7** | Import dữ liệu    | Import từ file template `import-workflow-credentials.json`    |
-| **8** | Thông tin Redis   | Hiển thị host, port, password kết nối Redis                   |
-| **9** | Xóa & cài lại     | Xóa toàn bộ và cài đặt lại N8N từ đầu                         |
-| **0** | Thoát             | Thoát khỏi công cụ                                            |
+Công cụ cung cấp một menu điều khiển trực quan với các nhóm tính năng:
+
+**1. Cài đặt & Cơ bản**
+
+- Cài đặt N8N mới
+- Thay đổi Tên miền truy cập
+- Nâng cấp phiên bản N8N
+- Cấu hình Môi trường (Timezone,...)
+
+**2. Tài khoản & Bảo mật**
+
+- Tắt/Bật xác thực 2 bước (2FA/MFA)
+- Đặt lại mật khẩu Quản trị viên
+
+**3. Dữ liệu & Sao lưu**
+
+- Export (Tải Workflows & Credential)
+- Import (Phục hồi Workflows/Creds)
+- Siêu Backup (Toàn bộ Server -> Zip)
+- Khôi phục toàn bộ hệ thống từ Zip
+- Cấu hình Auto-Backup theo lịch (Cron)
+- Marketplace (Cài đặt Workflow mẫu)
+
+**4. Quản trị hệ thống**
+
+- Xem Thông tin tài khoản Redis & Database
+- Xem Trạng thái/Tài nguyên (RAM/CPU)
+- Khởi động lại (Restart N8N Container)
+- Xem Error Logs N8N (Terminal)
+- Dọn rác máy chủ (Docker Prune)
+- System & Security Audit
+- Cập nhật N8N Cloud Manager
+
+**5. Khu vực nguy hiểm**
+
+- Xóa sạch Dữ liệu N8N và Cài đặt lại
+
+---
+
+## ⚡ Chế độ CLI (Tự động hóa / CI/CD)
+
+Bạn có thể gọi trực tiếp các lệnh mà không cần qua Menu (Non-interactive mode):
+
+```bash
+# Quản trị hệ thống
+n8n-host --install --domain <domain> --email <email>
+n8n-host --change-domain --domain <new_domain>
+n8n-host --upgrade
+n8n-host --reinstall
+n8n-host --update-script
+n8n-host --status
+n8n-host --restart
+n8n-host --logs
+n8n-host --prune-cache
+
+# Sao lưu & Phục hồi
+n8n-host --backup
+n8n-host --backup-cron
+n8n-host --restore --file <path_to_zip>
+n8n-host --setup-cron --value <on|off>
+n8n-host --export --path <dir>
+n8n-host --import --file <path_to_json>
+
+# Tài khoản & Bảo mật
+n8n-host --disable-2fa --email <email>
+n8n-host --reset-owner
+n8n-host --audit-json
+
+# Thông tin & Cấu hình
+n8n-host --config-set --key <KEY> --value <VALUE>
+n8n-host --db-info
+n8n-host --redis-info
+
+# Tiện ích
+n8n-host --install-template --id <template_id>
+n8n-host --uninstall
+```
 
 ---
 
@@ -55,13 +120,21 @@ n8n_script/
 │   │   ├── utils.sh              # Hàm phụ trợ (spinner, logging, ...)
 │   │   ├── setup.sh              # Các bước cài đặt (Docker, Nginx, SSL, ...)
 │   │   └── features/             # Các chức năng menu (mỗi file = 1 nhóm tính năng)
-│   │       ├── install.sh        # install(), reinstall_n8n()
-│   │       ├── domain.sh         # change_domain()
-│   │       ├── upgrade.sh        # upgrade_n8n_version()
-│   │       ├── auth.sh           # disable_mfa(), reset_user_login()
-│   │       ├── data.sh           # export_all_data(), import_data()
-│   │       └── redis.sh          # get_redis_info()
-│   └── main.sh                   # Menu chính và vòng lặp điều khiển
+│   │       ├── install.sh        # install, reinstall_n8n
+│   │       ├── domain.sh         # change_domain
+│   │       ├── upgrade.sh        # upgrade_n8n_version
+│   │       ├── auth.sh           # disable_mfa, reset_user_login
+│   │       ├── data.sh           # export_all_data, import_data
+│   │       ├── backup.sh         # backup_server, restore_server, cron_jobs
+│   │       ├── database.sh       # get_database_info
+│   │       ├── config.sh         # configure_environment
+│   │       ├── marketplace.sh    # open_marketplace
+│   │       ├── cleanup.sh        # docker_prune
+│   │       ├── audit.sh          # system_audit
+│   │       ├── self_update.sh    # update_script
+│   │       ├── service.sh        # show_status, restart, view_logs
+│   │       └── redis.sh          # get_redis_info
+│   └── main.sh                   # Chứa show_menu, điều hướng arguments CLI và vòng lặp chính
 ├── dist/
 │   └── n8n-host.sh               # ⚙️ File phân phối (do build.sh tạo ra — không sửa trực tiếp)
 ├── templates/
@@ -91,18 +164,26 @@ bash dist/n8n-host.sh --help
 
 ### Cấu trúc src/
 
-| File                          | Nội dung                                                         |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `src/lib/globals.sh`          | Định nghĩa màu ANSI, biến đường dẫn, tên container               |
-| `src/lib/utils.sh`            | `check_root`, `spinner`, `run_silent_command`, `update_env_file` |
-| `src/lib/setup.sh`            | Cài đặt Docker, Nginx, Certbot/SSL, tạo docker-compose           |
-| `src/lib/features/install.sh` | `install()`, `reinstall_n8n()`                                   |
-| `src/lib/features/domain.sh`  | `change_domain()`                                                |
-| `src/lib/features/upgrade.sh` | `upgrade_n8n_version()`                                          |
-| `src/lib/features/auth.sh`    | `disable_mfa()`, `reset_user_login()`                            |
-| `src/lib/features/data.sh`    | `export_all_data()`, `import_data()`                             |
-| `src/lib/features/redis.sh`   | `get_redis_info()`                                               |
-| `src/main.sh`                 | `show_menu`, vòng lặp `while`, `--help`, `--uninstall`           |
+| File / Thư mục                    | Nội dung                                                        |
+| --------------------------------- | --------------------------------------------------------------- |
+| `src/lib/globals.sh`              | Định nghĩa biến toàn cục, màu sắc, tên container, paths         |
+| `src/lib/utils.sh`                | Các hàm tiện ích: `spinner()`, log, kiểm tra quyền              |
+| `src/lib/setup.sh`                | Khởi tạo Docker, Nginx, chứng chỉ SSL                           |
+| `src/lib/features/install.sh`     | Cài đặt mới (`install`), Cài đặt lại (`reinstall_n8n`)          |
+| `src/lib/features/domain.sh`      | Đổi tên miền (`change_domain`)                                  |
+| `src/lib/features/upgrade.sh`     | Nâng cấp N8N (`upgrade_n8n_version`)                            |
+| `src/lib/features/auth.sh`        | Quản lý xác thực (`disable_mfa`, `reset_user_login`)            |
+| `src/lib/features/data.sh`        | Nhập/xuất workflows/creds (`export_all_data`, `import_data`)    |
+| `src/lib/features/backup.sh`      | Quản lý hệ thống sao lưu/khôi phục (`backup_server`, cron...)   |
+| `src/lib/features/config.sh`      | Quản lý biến môi trường (`configure_environment`)               |
+| `src/lib/features/database.sh`    | Thông tin Postgres (`get_database_info`)                        |
+| `src/lib/features/redis.sh`       | Thông tin Redis (`get_redis_info`)                              |
+| `src/lib/features/service.sh`     | Trạng thái, logs, restart (`show_status`, `restart_services`)   |
+| `src/lib/features/marketplace.sh` | Cài đặt workflow từ N8N Marketplace                             |
+| `src/lib/features/cleanup.sh`     | Dọn dẹp cache / logs (`docker_prune`)                           |
+| `src/lib/features/audit.sh`       | Kiểm tra bảo mật và tài nguyên hệ thống (`system_audit`)        |
+| `src/lib/features/self_update.sh` | Tự động cập nhật script phân phối (`update_script`)             |
+| `src/main.sh`                     | Vòng lặp `show_menu` và router argument `CLI_ACTION` (`--help`) |
 
 ---
 
@@ -136,7 +217,7 @@ n8n-host --uninstall
 
 Lệnh này chỉ gỡ bỏ binary `n8n-host` khỏi hệ thống. Dữ liệu N8N vẫn được giữ nguyên.
 
-Để xóa toàn bộ N8N và dữ liệu: chọn **mục 9** trong menu.
+Để xóa toàn bộ N8N và dữ liệu: chọn **mục 99** trong menu hoặc dùng lệnh `n8n-host --reinstall`.
 
 ---
 
