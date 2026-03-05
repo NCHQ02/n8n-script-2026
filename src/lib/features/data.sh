@@ -204,13 +204,23 @@ import_data() {
         return 0
     fi
 
-    local template_file_full_path="${CLI_FILE:-${TEMPLATE_DIR}/${TEMPLATE_FILE_NAME}}"
+    local import_source="1"
+    local local_file_path="${CLI_FILE:-}"
 
-    if [ ! -f "$template_file_full_path" ]; then
-        echo -e "${RED}Lỗi: File data '${template_file_full_path}' không tìm thấy trên server.${NC}"
-        echo -e "${YELLOW}Vui lòng cấp đúng đường dẫn file JSON có đuôi .json.${NC}"
-        if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
-        return 0
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -e "\n${CYAN}--- Chọn nguồn import dữ liệu ---${NC}"
+        echo -e " 1) Từ template mặc định trên GitHub (Tự động tải credentials.json & workflows.json)"
+        echo -e " 2) Từ file Local trên server"
+        read -p "$(echo -e ${CYAN}'Nhập lựa chọn của bạn (1-2) [Mặc định: 1]: '${NC})" import_source
+        import_source=${import_source:-1}
+        
+        if [[ "$import_source" == "2" ]]; then
+            read -p "Nhập đường dẫn tuyệt đối tới file .json: " local_file_path
+        fi
+    else
+        if [[ -n "$CLI_FILE" ]]; then
+            import_source="2"
+        fi
     fi
 
     trap 'RC=$?; stop_spinner; \
@@ -220,39 +230,71 @@ import_data() {
         return 0;' ERR SIGINT SIGTERM
 
     local container_temp_import_dir="/home/node/.n8n/temp_import_template_$$"
-
-    start_spinner "Chuẩn bị import workflow từ template..."
     if ! sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_import_dir}"; then
-        stop_spinner
         echo -e "${RED}Lỗi: Không thể tạo thư mục tạm trong container N8N.${NC}"
         return 1
     fi
 
-    local target_file_name
-    target_file_name=$(basename "$template_file_full_path")
-    local docker_cp_command="docker cp \"${template_file_full_path}\" \"${N8N_CONTAINER_NAME}:${container_temp_import_dir}/${target_file_name}\""
-    if ! sudo bash -c "$docker_cp_command" >/dev/null 2>&1; then
-        echo -e "${RED}Lỗi khi sao chép file data vào container.${NC}"
-        sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_import_dir}" &>/dev/null
-        return 1
-    fi
-
-    start_spinner "Đang import dữ liệu từ file ${target_file_name}..."
-    local import_cmd="n8n import:workflow --input=${container_temp_import_dir}/${target_file_name}"
-    # Nếu file tên credentials thì đổi cờ
-    if [[ "$target_file_name" == *"credential"* ]]; then
-        import_cmd="n8n import:credentials --input=${container_temp_import_dir}/${target_file_name}"
-    fi
-
     local import_log="/tmp/n8n_import_template.log"
+    > "${import_log}"
 
-    if ! sudo docker exec -u node "${N8N_CONTAINER_NAME}" ${import_cmd} > "${import_log}" 2>&1; then
+    if [[ "$import_source" == "1" ]]; then
+        start_spinner "Đang tải và import templates từ GitHub..."
+        
+        local github_base_url="https://raw.githubusercontent.com/NCHQ02/n8n-script-2026/main/templates"
+        local creds_url="${github_base_url}/credentials.json"
+        local workflows_url="${github_base_url}/workflows.json"
+        
+        # Download files directly into the container using curl inside docker
+        sudo docker exec -u node "${N8N_CONTAINER_NAME}" curl -s -L -o "${container_temp_import_dir}/credentials.json" "${creds_url}"
+        sudo docker exec -u node "${N8N_CONTAINER_NAME}" curl -s -L -o "${container_temp_import_dir}/workflows.json" "${workflows_url}"
+
+        # Import credentials if file is not empty
+        if sudo docker exec -u node "${N8N_CONTAINER_NAME}" grep -q "{" "${container_temp_import_dir}/credentials.json" 2>/dev/null; then
+            sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n import:credentials --input="${container_temp_import_dir}/credentials.json" >> "${import_log}" 2>&1 || true
+        fi
+        
+        # Import workflows if file is not empty
+        if sudo docker exec -u node "${N8N_CONTAINER_NAME}" grep -q "\[\|{" "${container_temp_import_dir}/workflows.json" 2>/dev/null; then
+            sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n import:workflow --input="${container_temp_import_dir}/workflows.json" >> "${import_log}" 2>&1 || true
+        fi
+        
         stop_spinner
-        echo -e "\n${RED}Lỗi khi import dữ liệu.${NC}"
+    else
+        if [ ! -f "$local_file_path" ]; then
+            echo -e "${RED}Lỗi: File data '${local_file_path}' không tìm thấy trên server.${NC}"
+            echo -e "${YELLOW}Vui lòng cấp đúng đường dẫn file JSON có đuôi .json.${NC}"
+            sudo docker exec -u node "${N8N_CONTAINER_NAME} rm -rf ${container_temp_import_dir}" &>/dev/null
+            if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi
+            return 0
+        fi
+
+        start_spinner "Đang import dữ liệu từ file local..."
+        local target_file_name
+        target_file_name=$(basename "$local_file_path")
+        
+        if ! sudo bash -c "docker cp \"${local_file_path}\" \"${N8N_CONTAINER_NAME}:${container_temp_import_dir}/${target_file_name}\"" >/dev/null 2>&1; then
+            stop_spinner
+            echo -e "${RED}Lỗi khi sao chép file data vào container.${NC}"
+            sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_import_dir}" &>/dev/null
+            return 1
+        fi
+
+        local import_cmd="n8n import:workflow --input=${container_temp_import_dir}/${target_file_name}"
+        if [[ "$target_file_name" == *"credential"* ]]; then
+            import_cmd="n8n import:credentials --input=${container_temp_import_dir}/${target_file_name}"
+        fi
+
+        sudo docker exec -u node "${N8N_CONTAINER_NAME}" ${import_cmd} >> "${import_log}" 2>&1 || true
+        stop_spinner
+    fi
+
+    # Check log for errors (simplified)
+    if grep -q "Error" "${import_log}" || grep -q "failed" "${import_log}"; then
+        echo -e "\n${YELLOW}Có thể có lỗi hoặc cảnh báo xuất hiện trong quá trình import (kiểm tra log bên dưới):${NC}"
         cat "${import_log}"
     else
-        stop_spinner
-        echo -e "\n${GREEN}[+] Import dữ liệu thành công!${NC}"
+        echo -e "\n${GREEN}[+] Import dữ liệu hoàn tất!${NC}"
         if [[ "$NON_INTERACTIVE" != "true" ]]; then
             echo -e "\n${YELLOW}--- HƯỚNG DẪN SỬ DỤNG ---${NC}"
             echo -e "1. Truy cập vào N8N qua trình duyệt."
@@ -260,13 +302,11 @@ import_data() {
             echo -e "3. Đảm bảo cấu hình lại Token & API Key cần thiết."
         fi
     fi
+
     sudo rm -f "${import_log}"
-
-    start_spinner "Dọn dẹp thư mục tạm trong container..."
     sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_import_dir}" &>/dev/null
-    stop_spinner
-
     trap - ERR SIGINT SIGTERM
+
     if [[ "$NON_INTERACTIVE" != "true" ]]; then
         echo -e "\n${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
         read -r

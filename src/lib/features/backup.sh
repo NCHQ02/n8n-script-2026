@@ -49,12 +49,12 @@ backup_server() {
   # 1. Export Credentials & Workflows (thông qua container n8n)
   start_spinner "Đang trích xuất Workflows & Credentials..."
   local container_temp_export_dir="/home/node/.n8n/temp_export_$$"
-  sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_export_dir}"
-  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:credentials --all --output="${container_temp_export_dir}/credentials.json" &>/dev/null
-  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:workflow --all --output="${container_temp_export_dir}/workflows.json" &>/dev/null
-  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/credentials.json" "${current_backup_dir}/credentials.json" &>/dev/null
-  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/workflows.json" "${current_backup_dir}/workflows.json" &>/dev/null
-  sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_export_dir}" &>/dev/null
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" mkdir -p "${container_temp_export_dir}" || true
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:credentials --all --output="${container_temp_export_dir}/credentials.json" &>/dev/null || true
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n export:workflow --all --output="${container_temp_export_dir}/workflows.json" &>/dev/null || true
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/credentials.json" "${current_backup_dir}/credentials.json" &>/dev/null || true
+  sudo docker cp "${N8N_CONTAINER_NAME}:${container_temp_export_dir}/workflows.json" "${current_backup_dir}/workflows.json" &>/dev/null || true
+  sudo docker exec -u node "${N8N_CONTAINER_NAME}" rm -rf "${container_temp_export_dir}" &>/dev/null || true
   stop_spinner
 
   # 2. Export Database PostgreSQL
@@ -62,16 +62,16 @@ backup_server() {
   local db_user=$(grep "^POSTGRES_USER=" "${ENV_FILE}" | cut -d'=' -f2)
   local db_name=$(grep "^POSTGRES_DB=" "${ENV_FILE}" | cut -d'=' -f2)
   if [[ -n "$db_user" && -n "$db_name" ]]; then
-      sudo docker exec n8n_postgres pg_dump -U "$db_user" -d "$db_name" -F c -f "/tmp/database.dump" &>/dev/null
-      sudo docker cp "n8n_postgres:/tmp/database.dump" "${current_backup_dir}/database.dump" &>/dev/null
-      sudo docker exec n8n_postgres rm -f "/tmp/database.dump" &>/dev/null
+      sudo docker exec n8n_postgres pg_dump -U "$db_user" -d "$db_name" -F c -f "/tmp/database.dump" &>/dev/null || true
+      sudo docker cp "n8n_postgres:/tmp/database.dump" "${current_backup_dir}/database.dump" &>/dev/null || true
+      sudo docker exec n8n_postgres rm -f "/tmp/database.dump" &>/dev/null || true
   fi
   stop_spinner
 
   # 3. Copy các file cấu hình quan trọng
   start_spinner "Đang sao lưu cấu hình môi trường..."
-  sudo cp "${N8N_DIR}/.env" "${current_backup_dir}/" &>/dev/null
-  sudo cp "${N8N_DIR}/docker-compose.yml" "${current_backup_dir}/" &>/dev/null
+  sudo cp "${N8N_DIR}/.env" "${current_backup_dir}/" &>/dev/null || true
+  sudo cp "${N8N_DIR}/docker-compose.yml" "${current_backup_dir}/" &>/dev/null || true
   stop_spinner
   
   # 4. Gom tất cả lại thành 1 file .tar.gz duy nhất

@@ -156,7 +156,7 @@ n8n_script/
 vim src/lib/features/install.sh
 
 # 2. Rebuild từ sources
-bash build.sh
+ & "C:\Program Files\Git\bin\bash.exe" build.sh
 
 # 3. Kiểm tra kết quả
 bash dist/n8n-host.sh --help
