@@ -2932,24 +2932,24 @@ show_menu() {
   echo -e " ${YELLOW}[ 1. CÀI ĐẶT & CƠ BẢN ]${NC}"
   printf " %-3s %-35s %-3s %s\n" "1)" "Cài đặt N8N mới" "2)" "Thay đổi Tên miền truy cập"
   printf " %-3s %-35s %-3s %s\n" "3)" "Nâng cấp phiên bản N8N" "4)" "Cấu hình Môi trường (Timezone,...)"
-  printf " %-3s %-35s\n" "21)" "Cấu hình Cloudflare Tunnel (Local)"
+  printf " %-3s %-35s\n" "5)" "Cấu hình Cloudflare Tunnel (Local)"
 
   # Nhóm 2: Tài khoản & Bảo mật
   echo -e "\n ${YELLOW}[ 2. TÀI KHOẢN & BẢO MẬT ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "5)" "Tắt/Bật xác thực 2 bước (2FA/MFA)" "6)" "Đặt lại mật khẩu Quản trị viên"
+  printf " %-3s %-35s %-3s %s\n" "6)" "Tắt/Bật xác thực 2 bước (2FA/MFA)" "7)" "Đặt lại mật khẩu Quản trị viên"
   
   # Nhóm 3: Dữ liệu (Backup & Restore)
   echo -e "\n ${YELLOW}[ 3. DỮ LIỆU & SAO LƯU ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "7)" "Export (Tải Workflows & Credential)" "8)" "Import (Phục hồi Workflows/Creds)"
-  printf " %-3s %-35s %-3s %s\n" "9)" "Siêu Backup (Toàn bộ Server -> Zip)" "10)" "Khôi phục toàn bộ hệ thống từ Zip"
-  printf " %-3s %-35s %-3s %s\n" "11)" "Cấu hình Auto-Backup theo lịch (Cron)" "12)" "Marketplace (Cài đặt Workflow mẫu)"
+  printf " %-3s %-35s %-3s %s\n" "8)" "Export (Tải Workflows & Credential)" "9)" "Import (Phục hồi Workflows/Creds)"
+  printf " %-3s %-35s %-3s %s\n" "10)" "Siêu Backup (Toàn bộ Server -> Zip)" "11)" "Khôi phục toàn bộ hệ thống từ Zip"
+  printf " %-3s %-35s %-3s %s\n" "12)" "Cấu hình Auto-Backup theo lịch (Cron)" "13)" "Marketplace (Cài đặt Workflow mẫu)"
 
   # Nhóm 4: Hệ thống & Logs
   echo -e "\n ${YELLOW}[ 4. QUẢN TRỊ HỆ THỐNG ]${NC}"
-  printf " %-3s %-35s %-3s %s\n" "13)" "Xem Thông tin tài khoản Redis" "14)" "Xem Thông tin tài khoản Database"
-  printf " %-3s %-35s %-3s %s\n" "15)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "16)" "Khởi động lại (Restart N8N Container)"
-  printf " %-3s %-35s %-3s %s\n" "17)" "Xem Error Logs N8N (Terminal)" "18)" "Dọn rác máy chủ (Docker Prune)"
-  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "19)" "System & Security Audit" "20)" "Cập nhật N8N Cloud Manager"
+  printf " %-3s %-35s %-3s %s\n" "14)" "Xem Thông tin tài khoản Redis" "15)" "Xem Thông tin tài khoản Database"
+  printf " %-3s %-35s %-3s %s\n" "16)" "Xem Trạng thái/Tài nguyên (RAM/CPU)" "17)" "Khởi động lại (Restart N8N Container)"
+  printf " %-3s %-35s %-3s %s\n" "18)" "Xem Error Logs N8N (Terminal)" "19)" "Dọn rác máy chủ (Docker Prune)"
+  printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "20)" "System & Security Audit" "21)" "Cập nhật N8N Cloud Manager"
 
   # Nhóm Nguy hiểm
   echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
@@ -2967,23 +2967,23 @@ while true; do
     2) change_domain ;;
     3) upgrade_n8n_version ;;
     4) configure_environment ;;
-    5) disable_mfa ;;
-    6) reset_user_login ;;
-    7) export_all_data ;;
-    8) import_data ;;
-    9) backup_server ;;
-    10) restore_server ;;
-    11) configure_auto_backup ;;
-    12) open_marketplace ;;
-    13) get_redis_info ;;
-    14) get_database_info ;;
-    15) show_status ;;
-    16) restart_services ;;
-    17) view_logs ;;
-    18) docker_prune ;;
-    19) system_audit ;;
-    20) update_script ;;
-    21) setup_cloudflare_tunnel ;;
+    5) setup_cloudflare_tunnel ;;
+    6) disable_mfa ;;
+    7) reset_user_login ;;
+    8) export_all_data ;;
+    9) import_data ;;
+    10) backup_server ;;
+    11) restore_server ;;
+    12) configure_auto_backup ;;
+    13) open_marketplace ;;
+    14) get_redis_info ;;
+    15) get_database_info ;;
+    16) show_status ;;
+    17) restart_services ;;
+    18) view_logs ;;
+    19) docker_prune ;;
+    20) system_audit ;;
+    21) update_script ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - NCHQ02 mãi iu Bạn!"
