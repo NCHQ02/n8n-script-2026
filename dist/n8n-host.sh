@@ -2517,7 +2517,7 @@ open_marketplace() {
     # Định nghĩa danh sách các mẫu (id|tên|link json)
     # Tương lai có thể cào tự động bằng API Github, nhưng fix cứng mảng sẽ an toàn và nhanh hơn cho Bash Script
     local templates=(
-      "1|Luồng import workflow credential|import-workflow-credential.json"
+      "1|Luồng import workflow credential|import-workflow-credentials.json"
     )
 
     local choice
