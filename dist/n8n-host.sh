@@ -1573,6 +1573,7 @@ import_data() {
     trap 'RC=$?; stop_spinner; \
         echo -e "\n${YELLOW}Huỷ bỏ/Lỗi trong quá trình import (Mã lỗi: $RC). Đang dọn dẹp...${NC}"; \
         sudo docker exec -u node ${N8N_CONTAINER_NAME} rm -rf "/home/node/.n8n/temp_import_template_$$" &>/dev/null; \
+        sudo rm -rf "/tmp/n8n_import_host_$$" &>/dev/null; \
         if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; \
         return 0;' ERR SIGINT SIGTERM
 
@@ -1592,19 +1593,27 @@ import_data() {
         local creds_url="${github_base_url}/credentials.json"
         local workflows_url="${github_base_url}/workflows.json"
         
-        # Download files directly into the container using curl inside docker
-        sudo docker exec -u node "${N8N_CONTAINER_NAME}" curl -s -L -o "${container_temp_import_dir}/credentials.json" "${creds_url}"
-        sudo docker exec -u node "${N8N_CONTAINER_NAME}" curl -s -L -o "${container_temp_import_dir}/workflows.json" "${workflows_url}"
+        # Download files to host first using curl, then copy to container
+        local host_temp_dir="/tmp/n8n_import_host_$$"
+        sudo mkdir -p "${host_temp_dir}"
+        
+        sudo curl -s -L -o "${host_temp_dir}/credentials.json" "${creds_url}"
+        sudo curl -s -L -o "${host_temp_dir}/workflows.json" "${workflows_url}"
+
+        sudo docker cp "${host_temp_dir}/credentials.json" "${N8N_CONTAINER_NAME}:${container_temp_import_dir}/credentials.json"
+        sudo docker cp "${host_temp_dir}/workflows.json" "${N8N_CONTAINER_NAME}:${container_temp_import_dir}/workflows.json"
 
         # Import credentials if file is not empty
-        if sudo docker exec -u node "${N8N_CONTAINER_NAME}" grep -q "{" "${container_temp_import_dir}/credentials.json" 2>/dev/null; then
+        if grep -q "{" "${host_temp_dir}/credentials.json" 2>/dev/null; then
             sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n import:credentials --input="${container_temp_import_dir}/credentials.json" >> "${import_log}" 2>&1 || true
         fi
         
         # Import workflows if file is not empty
-        if sudo docker exec -u node "${N8N_CONTAINER_NAME}" grep -q "\[\|{" "${container_temp_import_dir}/workflows.json" 2>/dev/null; then
+        if grep -q "\[\|{" "${host_temp_dir}/workflows.json" 2>/dev/null; then
             sudo docker exec -u node "${N8N_CONTAINER_NAME}" n8n import:workflow --input="${container_temp_import_dir}/workflows.json" >> "${import_log}" 2>&1 || true
         fi
+
+        sudo rm -rf "${host_temp_dir}"
         
         stop_spinner
     else
