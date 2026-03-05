@@ -1,1 +1,2079 @@
-[{"updatedAt":"2026-03-05T03:37:20.833Z","createdAt":"2026-03-05T03:37:20.833Z","id":"q0TTJLHsweAx0qhS","name":"My workflow","description":null,"active":false,"isArchived":false,"nodes":[{"parameters":{},"type":"n8n-nodes-base.manualTrigger","typeVersion":1,"position":[0,0],"id":"0b5bfef4-cf8d-4085-9886-60ca587ba359","name":"When clicking ‘Execute workflow’"}],"connections":{},"settings":{"executionOrder":"v1","binaryMode":"separate","availableInMCP":false},"staticData":null,"meta":null,"pinData":{},"versionId":"6ba5fadb-53ab-499f-b602-a124f741f0ec","activeVersionId":null,"versionCounter":1,"triggerCount":0,"tags":[],"shared":[{"updatedAt":"2026-03-05T03:37:20.833Z","createdAt":"2026-03-05T03:37:20.833Z","role":"workflow:owner","workflowId":"q0TTJLHsweAx0qhS","projectId":"DTJTg8hhkcscVupp","project":{"updatedAt":"2026-03-05T03:36:28.642Z","createdAt":"2026-03-05T03:35:34.496Z","id":"DTJTg8hhkcscVupp","name":"NGUYEN QUY <hoangquy2620@gmail.com>","type":"personal","icon":null,"description":null,"creatorId":"6432e1ca-39aa-49ed-9b01-6aeb2dbe5f50"}}],"versionMetadata":{"name":null,"description":null}},{"updatedAt":"2026-03-05T04:07:06.028Z","createdAt":"2026-03-05T04:04:18.840Z","id":"UG5vdaPr2NAgc6kb","name":"Workflow Importer","description":null,"active":false,"isArchived":false,"nodes":[{"parameters":{"formTitle":"N8n Workflow Loader","formDescription":"Load select workflows from your chosen n8n instance. ","formFields":{"values":[{"fieldName":"Choose A Mode","fieldLabel":"Mode","fieldType":"dropdown","defaultValue":"Default","fieldOptions":{"values":[{"option":"Default"},{"option":"Dynamic"}]},"requiredField":true}]},"options":{"appendAttribution":false,"buttonLabel":"Find Workflows","path":"6042ce10-424d-448f-b991-3127137d95dd","customCss":":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}"}},"id":"820291f7-cba3-4d28-94e5-12c7d53ecf2e","name":"On form submission","type":"n8n-nodes-base.formTrigger","position":[3472,2560],"webhookId":"6042ce10-424d-448f-b991-3127137d95dd","typeVersion":2.4},{"parameters":{"mode":"runOnceForEachItem","jsCode":"/**\n * Build an n8n-API-safe workflow payload\n * using a strict allowlist (NOT a denylist).\n */\n\n// --------------------\n// Helpers\n// --------------------\n\nfunction pick(obj, allowedKeys) {\n  if (!obj || typeof obj !== 'object') return {};\n  return Object.fromEntries(\n    Object.entries(obj).filter(([key]) => allowedKeys.includes(key))\n  );\n}\n\nfunction cleanNode(node) {\n  return {\n    id: node.id,\n    name: node.name,\n    type: node.type,\n    typeVersion: node.typeVersion,\n    position: node.position,\n    parameters: node.parameters ?? {},\n    credentials: node.credentials ?? {},\n    disabled: node.disabled ?? false,\n    notes: node.notes,\n    notesInFlow: node.notesInFlow,\n  };\n}\n\n// --------------------\n// ENTRY POINT\n// --------------------\n\nconst source = $json;\n\n// ---- Top-level allowlist ----\nconst workflow = {\n  name: source.name,\n  nodes: source.nodes.map(cleanNode),\n  connections: source.connections,\n  settings: {\n    \"saveExecutionProgress\": true,\n    \"saveManualExecutions\": true,\n    \"saveDataErrorExecution\": \"all\",\n    \"saveDataSuccessExecution\": \"all\",\n    \"executionTimeout\": 3600,\n    \"timezone\": \"America/New_York\",\n    \"executionOrder\": \"v1\",\n    \"callerPolicy\": \"workflowsFromSameOwner\",\n    \"callerIds\": \"14, 18, 23\",\n    \"timeSavedPerExecution\": 1,\n    \"availableInMCP\": false\n  }\n};\n\n// ---- Settings allowlist ----\nconst ALLOWED_SETTINGS = [\n  'timezone',\n  'executionTimeout',\n  'saveExecutionProgress',\n  'saveManualExecutions',\n  'errorWorkflowId',\n];\n\nif (source.settings) {\n  const cleanedSettings = pick(source.settings, ALLOWED_SETTINGS);\n  if (Object.keys(cleanedSettings).length > 0) {\n    workflow.settings = cleanedSettings;\n  }\n}\n\n// ---- Optional staticData ----\nif (source.staticData) {\n  workflow.staticData = source.staticData;\n}\n\nreturn workflow;"},"id":"8a618616-f076-4541-ac2d-0b31f84cbc99","name":"Strip Incompatible API Fields","type":"n8n-nodes-base.code","position":[8192,3376],"typeVersion":2},{"parameters":{"conditions":{"options":{"version":3,"leftValue":"","caseSensitive":true,"typeValidation":"strict"},"combinator":"and","conditions":[{"id":"20678e33-3415-4d80-890c-752435182ddd","operator":{"type":"boolean","operation":"equals"},"leftValue":"={{ $json.isArchived }}","rightValue":false}]},"options":{}},"id":"19bbaf88-7fb7-45df-9df3-dcf96bbbb516","name":"Filter Our Archived Items","type":"n8n-nodes-base.filter","position":[6400,3376],"typeVersion":2.3},{"parameters":{"aggregate":"aggregateAllItemData","options":{}},"id":"9cf1cffc-4882-4134-9b95-ebe623a2339d","name":"Aggregate Workflows","type":"n8n-nodes-base.aggregate","position":[6848,3440],"typeVersion":1},{"parameters":{"defineForm":"json","jsonOutput":"=[\n  {\n    \"fieldLabel\": \"workflows\",\n    \"fieldType\": \"checkbox\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  }\n]\n","options":{"formTitle":"Select Workflows","buttonLabel":"Select Workflows","customCss":":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"}},"id":"0abfd10f-069a-47ea-923b-0ab4b2b6a886","name":"Select Workflows","type":"n8n-nodes-base.form","position":[7296,3440],"webhookId":"d6923eb5-f79c-4d3f-8108-9ba7bdb79a2b","typeVersion":2.4},{"parameters":{"mode":"combine","advanced":true,"mergeByFields":{"values":[{"field1":"name","field2":"workflows"}]},"outputDataFrom":"input1","options":{}},"id":"302eaba6-b759-459e-9476-ca01d6a1fae6","name":"Select Matching Workflows","type":"n8n-nodes-base.merge","position":[7744,3376],"typeVersion":3.2},{"parameters":{"fieldToSplitOut":"workflows","options":{}},"id":"d24f6e50-e1b2-4547-be3c-ae44eaa90031","name":"Split Out Workflows","type":"n8n-nodes-base.splitOut","position":[7520,3440],"typeVersion":1},{"parameters":{"jsCode":"const data = $input.first().json.data;\n\nconst options = data\n  .map(item => `{\n  \"option\": \"${item.workflow_name}\"}`)\n  .join(\",\");\n\nreturn {\n  json: {\n    options,\n  },\n};"},"id":"14837ec1-ceb0-4a4d-9743-b05e03cdc010","name":"Create JSON Workflow Options","type":"n8n-nodes-base.code","position":[7072,3440],"typeVersion":2},{"parameters":{"fieldToSplitOut":"data","options":{}},"id":"fd34a03b-be91-4782-9770-5890a64fedf3","name":"Split Out","type":"n8n-nodes-base.splitOut","position":[6176,3376],"typeVersion":1},{"parameters":{"rules":{"values":[{"conditions":{"options":{"version":3,"leftValue":"","caseSensitive":true,"typeValidation":"strict"},"combinator":"and","conditions":[{"id":"f9af535e-1cd8-43dd-9285-4f8185632c76","operator":{"type":"string","operation":"equals"},"leftValue":"={{ $json[\"Choose A Mode\"] }}","rightValue":"Default"}]},"renameOutput":true,"outputKey":"default"},{"conditions":{"options":{"version":3,"leftValue":"","caseSensitive":true,"typeValidation":"strict"},"combinator":"and","conditions":[{"id":"b33acb3e-d4de-444b-8913-16c0b13d906b","operator":{"name":"filter.operator.equals","type":"string","operation":"equals"},"leftValue":"={{ $json[\"Choose A Mode\"] }}","rightValue":"Dynamic"}]},"renameOutput":true,"outputKey":"dynamic"}]},"options":{}},"id":"b2a921da-5b6b-482c-be58-f7246494b773","name":"Route Mode","type":"n8n-nodes-base.switch","position":[3696,2560],"typeVersion":3.4},{"parameters":{"mode":"runOnceForEachItem","jsCode":"/**\n * Build an n8n-API-safe workflow payload\n * using a strict allowlist (NOT a denylist).\n */\n\n// --------------------\n// Helpers\n// --------------------\n\nfunction pick(obj, allowedKeys) {\n  if (!obj || typeof obj !== 'object') return {};\n  return Object.fromEntries(\n    Object.entries(obj).filter(([key]) => allowedKeys.includes(key))\n  );\n}\n\nfunction cleanNode(node) {\n  return {\n    id: node.id,\n    name: node.name,\n    type: node.type,\n    typeVersion: node.typeVersion,\n    position: node.position,\n    parameters: node.parameters ?? {},\n    credentials: node.credentials ?? {},\n    disabled: node.disabled ?? false,\n    notes: node.notes,\n    notesInFlow: node.notesInFlow,\n  };\n}\n\n// --------------------\n// ENTRY POINT\n// --------------------\n\nconst source = $json;\n\n// ---- Top-level allowlist ----\nconst workflow = {\n  name: source.name,\n  nodes: source.nodes.map(cleanNode),\n  connections: source.connections,\n};\n\n// ---- Settings allowlist ----\nconst ALLOWED_SETTINGS = [\n  'timezone',\n  'executionTimeout',\n  'saveExecutionProgress',\n  'saveManualExecutions',\n  'errorWorkflowId',\n];\n\nif (source.settings) {\n  const cleanedSettings = pick(source.settings, ALLOWED_SETTINGS);\n  if (Object.keys(cleanedSettings).length > 0) {\n    workflow.settings = cleanedSettings;\n  }\n}\n\n// ---- Optional staticData ----\nif (source.staticData) {\n  workflow.staticData = source.staticData;\n}\n\nreturn workflow;"},"id":"8e3e7258-33f9-48fa-a739-9451d51edd81","name":"Strip Incompatible API Fields1","type":"n8n-nodes-base.code","position":[5936,2384],"typeVersion":2},{"parameters":{"conditions":{"options":{"version":3,"leftValue":"","caseSensitive":true,"typeValidation":"strict"},"combinator":"and","conditions":[{"id":"20678e33-3415-4d80-890c-752435182ddd","operator":{"type":"boolean","operation":"equals"},"leftValue":"={{ $json.isArchived }}","rightValue":false}]},"options":{}},"id":"50f8f779-f724-4a1c-80bd-03e022e1f98c","name":"Filter Our Archived Items1","type":"n8n-nodes-base.filter","position":[4144,2384],"typeVersion":2.3},{"parameters":{"defineForm":"json","jsonOutput":"=[\n  {\n    \"fieldLabel\": \"workflows\",\n    \"fieldType\": \"checkbox\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  }\n]\n","options":{"formTitle":"Select Workflows","buttonLabel":"Select Workflows","customCss":":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"}},"id":"a5d8ff09-4a17-4063-9592-1755f15d39f9","name":"Select Workflows1","type":"n8n-nodes-base.form","position":[5040,2464],"webhookId":"ef927f26-9ac5-4967-b812-7dbe8df9db45","typeVersion":2.4},{"parameters":{"mode":"combine","advanced":true,"mergeByFields":{"values":[{"field1":"name","field2":"workflows"}]},"outputDataFrom":"input1","options":{}},"id":"385d093e-bb8b-45c9-8b3c-5a4a7515a325","name":"Select Matching Workflows1","type":"n8n-nodes-base.merge","position":[5488,2384],"typeVersion":3.2},{"parameters":{"fieldToSplitOut":"workflows","options":{}},"id":"225efe1e-09f9-499f-a0fe-5a596c53fe5f","name":"Split Out Workflows1","type":"n8n-nodes-base.splitOut","position":[5264,2464],"typeVersion":1},{"parameters":{"jsCode":"const data = $input.first().json.data;\n\nconst options = data\n  .map(item => `{\n  \"option\": \"${item.workflow_name}\"}`)\n  .join(\",\");\n\nreturn {\n  json: {\n    options,\n  },\n};"},"id":"1998a6d8-37dc-492a-b54c-ee6f3f3fbd4a","name":"Create JSON Workflow Options1","type":"n8n-nodes-base.code","position":[4816,2464],"typeVersion":2},{"parameters":{"resource":"databasePage","operation":"getAll","databaseId":{"__rl":true,"mode":"list","value":"306785c0-cfab-80a8-9236-f9c9b14042b5","cachedResultUrl":"https://www.notion.so/306785c0cfab80a89236f9c9b14042b5","cachedResultName":"Granite n8n Keys"},"returnAll":true,"options":{}},"id":"3df2abee-1eb1-4e78-bbad-e1c71f772bf4","name":"Get Instance Information","type":"n8n-nodes-base.notion","position":[3936,3376],"typeVersion":2.2},{"parameters":{"jsCode":"const data = $input.first().json.data;\n\nconst options = data\n  .map(item => `{\n  \"option\": \"${item.workflow_name}\"}`)\n  .join(\",\");\n\nreturn {\n  json: {\n    options,\n  },\n};"},"id":"1793a3f5-e2b7-44a2-af54-f664dbba0019","name":"Create JSON Workflow Options2","type":"n8n-nodes-base.code","position":[4624,3600],"typeVersion":2},{"parameters":{"assignments":{"assignments":[{"id":"0e1b7526-faf5-4001-ba27-3005836cc58f","name":"workflow_name","type":"string","value":"={{ $json.name }}"}]},"options":{}},"id":"5aa22a9c-39d5-4fa4-994c-bbe36d37174c","name":"Set Source Name and URL","type":"n8n-nodes-base.set","position":[4176,3600],"typeVersion":3.4},{"parameters":{"defineForm":"json","jsonOutput":"=[\n  {\n    \"fieldLabel\": \"source\",\n    \"fieldType\": \"dropdown\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  },\n  {\n    \"fieldLabel\": \"target\",\n    \"fieldType\": \"dropdown\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  }\n]\n","options":{"formTitle":"Select Source Instance","buttonLabel":"Select Source Instance","customCss":":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"}},"id":"4adf61f8-6f68-4c5d-99ef-10c707c2e54a","name":"Select Workflows2","type":"n8n-nodes-base.form","position":[4848,3600],"webhookId":"d6923eb5-f79c-4d3f-8108-9ba7bdb79a2b","typeVersion":2.4},{"parameters":{"assignments":{"assignments":[{"id":"a9355cc3-a088-47cb-a25b-2d6a7886efea","name":"type","type":"string","value":"=source"},{"id":"03af0601-f7c7-48a9-96fe-27be9a08def5","name":"name","type":"string","value":"={{ $json.name }}"},{"id":"851da7d5-da27-41fc-9dcb-8b85831518e3","name":"url","type":"string","value":"={{ $json.property_url }}"},{"id":"bf6b054b-70c9-4639-8912-f0c3a0492a39","name":"id","type":"string","value":"={{ $json.id }}"},{"id":"2a8178d4-e97c-48bb-9287-cdf5908f68e5","name":"api_key","type":"string","value":"={{ $json.property_api_key }}"}]},"options":{}},"id":"d9486fb9-90f3-43be-8aa6-dcf3b5f928f7","name":"Set Source","type":"n8n-nodes-base.set","position":[5280,3232],"typeVersion":3.4},{"parameters":{"assignments":{"assignments":[{"id":"a9355cc3-a088-47cb-a25b-2d6a7886efea","name":"type","type":"string","value":"=target"},{"id":"d65a1dab-d672-4e68-b282-57f876dfa91c","name":"name","type":"string","value":"={{ $json.name }}"},{"id":"2bc3812b-f884-4e33-8647-e9876b836585","name":"url","type":"string","value":"={{ $json.property_url }}"},{"id":"1bebcd7a-fbda-4c83-8512-db3f8c86bc74","name":"id","type":"string","value":"={{ $json.id }}"},{"id":"9e23c106-67c2-43ed-a12a-adeae6650a23","name":"api_key","type":"string","value":"={{ $json.property_api_key }}"}]},"includeOtherFields":true,"options":{}},"id":"52030530-7981-4430-b4ea-a6bab465ff07","name":"Set Target","type":"n8n-nodes-base.set","position":[5280,3488],"typeVersion":3.4},{"parameters":{},"id":"eed2ab41-9dd1-4354-9272-3dfbf54eca83","name":"Merge Source and Target","type":"n8n-nodes-base.merge","position":[5504,3376],"typeVersion":3.2},{"parameters":{"aggregate":"aggregateAllItemData","options":{}},"id":"4e1ec51d-9483-4865-954f-6de58f19a8ae","name":"Source and Target","type":"n8n-nodes-base.aggregate","position":[5728,3376],"typeVersion":1},{"parameters":{"content":"## How it works 🧠 (Workflow explanation)\n\nThis workflow lets you selectively import workflows between n8n instances using the n8n API and forms.\n\nInstead of bulk imports or manual exports, it dynamically retrieves workflows from a source instance and lets you choose exactly what to load into a target instance.\n\n### Here’s what happens:\n1. The workflow retrieves workflows from a source n8n instance via the API.\n2. A dynamic form is generated listing available workflows.\n3. You select which workflows to import.\n4. Selected workflows are formatted for API compatibility.\n5. Workflows are created in the target n8n instance.\n\n### This ensures:\n- No bulk imports  \n- No accidental overwrites  \n- Full control over what gets moved  \n- Safe, API-driven workflow creation  \n\n## Setup steps ⚙️\n\n**Estimated setup time:** 2–5 minutes\n\n### Simple mode (default)\n1. Add API credentials for the source n8n instance.\n2. Add API credentials for the target n8n instance.\n3. Execute the workflow and select workflows to import.\n\n### Dynamic mode (optional)\n1. Connect a database (e.g. Notion or Supabase) containing:\n   - n8n instance URLs  \n   - n8n API keys  \n2. Select the source and target instances via the form.\n3. Choose which workflows to import and run.\n\nOnce credentials are connected, the workflow is ready to use 🚀","height":912,"width":640},"id":"1a781243-fd0d-49b6-a057-e27fb5f064eb","name":"Sticky Note3","type":"n8n-nodes-base.stickyNote","position":[2704,1856],"typeVersion":1},{"parameters":{"mode":"combine","advanced":true,"mergeByFields":{"values":[{"field1":"name","field2":"source"}]},"outputDataFrom":"input1","options":{}},"id":"eb97e2a4-2f5e-4388-9376-2d6c613037ea","name":"Merge Source Instance","type":"n8n-nodes-base.merge","position":[5056,3232],"typeVersion":3.2},{"parameters":{"mode":"combine","advanced":true,"mergeByFields":{"values":[{"field1":"name","field2":"target"}]},"outputDataFrom":"input1","options":{}},"id":"20cd0055-9071-4ec3-a10f-da50194c4465","name":"Merge Target Instance","type":"n8n-nodes-base.merge","position":[5056,3488],"typeVersion":3.2},{"parameters":{"content":"## 🔁 Mode selection (static vs dynamic)\n\nThis section determines how the source and target n8n instances are configured.\n\n**Simple mode**\n- Uses n8n API credentials configured directly in the workflow\n- Source and target instances are fixed\n- Fastest way to get started\n\n**Dynamic mode**\n- Loads instance URLs and API keys from an external database (e.g. Notion)\n- Lets you select source and target instances via a form\n- Ideal for managing multiple n8n instances securely\n\nBoth modes use the same import logic downstream; only the instance configuration differs.","height":624,"width":544,"color":7},"id":"f489d1f2-82c4-431e-86a2-a49b2b267427","name":"Sticky Note","type":"n8n-nodes-base.stickyNote","position":[3360,2144],"typeVersion":1},{"parameters":{"content":"## Discover & Select Workflows (static mode)\n\nThis section retrieves workflows from the source n8n instance and prepares them for user selection.\n\n**What happens**\n- Fetches all available workflows via the n8n API\n- Filters out archived or inactive workflows\n- Aggregates results into a single list\n- Builds a dynamic selection form (JSON mode)\n\nYou then select exactly which workflows to import.  \nOnly selected workflows continue downstream.","height":576,"width":1728,"color":7},"id":"85c1cf4c-e8c9-4b9d-b4da-579ec0d9c098","name":"Sticky Note1","type":"n8n-nodes-base.stickyNote","position":[4096,2064],"typeVersion":1},{"parameters":{"content":"## Import & Clean Workflows\n\nThis section prepares selected workflows for safe import into the target n8n instance.\n\n**What happens**\n- Retrieves each selected workflow via the n8n API\n- Removes fields that are incompatible with workflow creation\n- Normalises the workflow structure for API import\n- Creates the workflow in the target instance\n\nThis ensures workflows are imported cleanly without conflicts or invalid metadata.","height":576,"width":448,"color":7},"id":"70bc7294-b6a6-4ac1-bb46-37bbc9832aa9","name":"Sticky Note2","type":"n8n-nodes-base.stickyNote","position":[5872,2064],"typeVersion":1},{"parameters":{"content":"## Structure Success Message\n\nFormats the final result for each processed workflow by creating a clean summary showing whether each workflow was created or failed.","height":576,"width":416,"color":7},"id":"c10bb537-46e5-4e1f-bb15-6e5b10539d97","name":"Sticky Note6","type":"n8n-nodes-base.stickyNote","position":[6352,2064],"typeVersion":1},{"parameters":{"content":"## Discover workflows\n\nThis section retrieves all workflows from the selected n8n instance.\n\nIt:\n- Calls the n8n `/api/v1/workflows` endpoint\n- Filters out archived workflows\n- Aggregates active workflows into a single list\n\nPagination is handled using a cursor-based approach, ensuring all workflows are retrieved even on large instances.","height":576,"width":640,"color":7},"id":"1de8f24b-cd7d-411c-b989-3b7411db6928","name":"Sticky Note4","type":"n8n-nodes-base.stickyNote","position":[5888,3104],"typeVersion":1},{"parameters":{"content":"## Select source and target instances (dynamic mode)\n\nThis section builds the final **Source and Target** payload by combining:\n\n- **Instance records** pulled from your database (e.g. Notion)\n- The user’s form selections (which instance is “source” and which is “target”)\n\n### What happens\n1. **Get Instance Information** loads all saved instances (URL + API key + display name).\n2. Two branches prepare each side:\n   - **Merge Source Instance → Set Source**\n   - **Merge Target Instance → Set Target**\n3. **Merge Source and Target** appends both objects into one array.\n4. **Source and Target** outputs a single structure used downstream to dynamically set:\n   - The base URL (instance URL)\n   - The API key header\n   - The instance role (`source` vs `target`)\n\n✅ Outcome: downstream nodes can reference the selected instances without hardcoding credentials in the workflow.\n⚠️ Keep API keys in a secure database, not inside n8n nodes or sticky notes.","height":928,"width":1760,"color":7},"id":"87ac6e8a-8a6c-4157-83d5-3f1253369cec","name":"Sticky Note5","type":"n8n-nodes-base.stickyNote","position":[3904,2864],"typeVersion":1},{"parameters":{"content":"## Select workflows\n\nBuilds a dynamic form that allows you to choose which workflows to import.\n\nIt:\n- Converts the discovered workflows into form options\n- Presents them using an n8n Form node\n- Passes only selected workflows downstream\n\nOnly workflows selected by the user continue to the import stage.","height":576,"width":1520,"color":7},"id":"db01adb8-18cc-48c5-a12a-579a950b8fc1","name":"Sticky Note7","type":"n8n-nodes-base.stickyNote","position":[6576,3104],"typeVersion":1},{"parameters":{"content":"## Import & clean workflows\n\nThis section prepares selected workflows for safe import into the target n8n instance.\n\n**What happens**\n- Retrieves each selected workflow via the n8n API\n- Removes fields incompatible with workflow creation\n- Normalises the workflow structure for import\n- Creates the workflow in the target instance\n\nThis ensures workflows are imported cleanly without conflicts or invalid metadata.","height":656,"width":448,"color":7},"id":"f3ff1bda-738a-4a83-aa67-fe76420ebd9c","name":"Sticky Note8","type":"n8n-nodes-base.stickyNote","position":[8128,3024],"typeVersion":1},{"parameters":{"content":"## Structure success message\n\nFormats the final result for each processed workflow.\n\nCreates a clear summary showing whether each workflow was successfully created or failed, ensuring a consistent and easy-to-read output.","height":576,"width":416,"color":7},"id":"d4440381-9553-45b1-a0b5-d6f7d022441c","name":"Sticky Note9","type":"n8n-nodes-base.stickyNote","position":[8608,3104],"typeVersion":1},{"parameters":{"method":"POST","url":"={{ $('Source and Target').first().json.data.filter(item => item.type === 'target').map(item => item.url).toString() }}/api/v1/workflows","sendHeaders":true,"headerParameters":{"parameters":[{"name":"X-N8N-API-KEY","value":"={{ $('Source and Target').first().json.data.filter(item => item.type === 'target').map(item => item.api_key).toString() }}"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={{ $json.toJsonString() }}","options":{}},"id":"91e77036-3de6-43ad-9e2c-d5586dcfcc13","name":"Create Workflow(s)","type":"n8n-nodes-base.httpRequest","position":[8416,3376],"typeVersion":4.4},{"parameters":{"operation":"create","workflowObject":"={{ $json.toJsonString() }}","requestOptions":{}},"id":"84f19ea6-6c33-4302-99fe-2b9a56f0db8c","name":"Create Workflow(s)1","type":"n8n-nodes-base.n8n","position":[6160,2384],"typeVersion":1},{"parameters":{"assignments":{"assignments":[{"id":"0e1b7526-faf5-4001-ba27-3005836cc58f","name":"workflow_name","type":"string","value":"={{ $json.name }}"}]},"options":{}},"id":"8d1b3ea4-9595-469b-a20e-2c95d702f595","name":"Set Workflow Display Name (Dynamic)","type":"n8n-nodes-base.set","position":[6624,3440],"typeVersion":3.4},{"parameters":{"assignments":{"assignments":[{"id":"0e1b7526-faf5-4001-ba27-3005836cc58f","name":"workflow_name","type":"string","value":"={{ $json.name }}"}]},"options":{}},"id":"7463490c-08cc-488c-90a4-8a8fbb922178","name":"Set Workflow Display Name (Static)","type":"n8n-nodes-base.set","position":[4368,2464],"typeVersion":3.4},{"parameters":{"aggregate":"aggregateAllItemData","options":{}},"id":"5838a5f4-08d0-40c9-9588-9160e5dd54a9","name":"Aggregate Workflows (Dynamic)","type":"n8n-nodes-base.aggregate","position":[8640,3376],"typeVersion":1},{"parameters":{"aggregate":"aggregateAllItemData","options":{}},"id":"eeeef23b-6f4b-43e4-9d49-fc4fa0e1d22d","name":"Aggregate Workflows (Static)","type":"n8n-nodes-base.aggregate","position":[6384,2384],"typeVersion":1},{"parameters":{"operation":"completion","completionTitle":"Results","completionMessage":"={{ $json.data.map(item =>\n`${item.is_empty === true ? item.name + ' - Failed ❌' : item.name + ' - Success! ✅'}`\n).join('\\n\\n') }}","options":{"customCss":":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"}},"id":"1d62919c-a798-4d31-9a7e-0a004adfe2af","name":"Results (Dynamic)","type":"n8n-nodes-base.form","position":[8864,3376],"webhookId":"50111f86-1e6e-44f9-9d76-8add726b5668","typeVersion":2.4},{"parameters":{"operation":"completion","completionTitle":"Results","completionMessage":"={{ $json.data.map(item =>\n`${item.is_empty === true ? item.name + ' - Failed ❌' : item.name + ' - Success! ✅'}`\n).join('\\n\\n') }}","options":{"customCss":":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"}},"id":"5b827fc6-1b79-478d-819e-45966edca64b","name":"Results (Static)","type":"n8n-nodes-base.form","position":[6608,2384],"webhookId":"d8aa349e-f077-43a8-984e-9e830d680f11","typeVersion":2.4},{"parameters":{"aggregate":"aggregateAllItemData","options":{}},"id":"4fb34de4-e330-4a61-a138-3c9d32fae6ca","name":"Aggregate Workflow Options (Static)","type":"n8n-nodes-base.aggregate","position":[4592,2464],"typeVersion":1},{"parameters":{"aggregate":"aggregateAllItemData","options":{}},"id":"e3ea50c9-46f0-4111-8f33-0446a5ce68e5","name":"Aggregate Workflow Options (Dynamic)","type":"n8n-nodes-base.aggregate","position":[4400,3600],"typeVersion":1},{"parameters":{"filters":{},"requestOptions":{}},"id":"e4f47619-d2b0-4368-9c6e-735b590b5611","name":"Get All Source Instance Workflows","type":"n8n-nodes-base.n8n","position":[3920,2384],"typeVersion":1},{"parameters":{"url":"={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.url).toString() }}/api/v1/workflows","sendHeaders":true,"headerParameters":{"parameters":[{"name":"X-N8N-API-KEY","value":"={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.api_key).toString() }}"}]},"options":{"pagination":{"pagination":{"parameters":{"parameters":[{"name":"cursor","value":"={{ $response.body.nextCursor }}"}]},"paginationCompleteWhen":"receiveSpecificStatusCodes","statusCodesWhenComplete":"400","requestInterval":1000}}}},"id":"f8b34d0e-da75-4b54-9c23-edb81a61a5be","name":"Get Source Workflows With Pagination","type":"n8n-nodes-base.httpRequest","position":[5952,3376],"typeVersion":4.4},{"parameters":{"operation":"get","workflowId":{"__rl":true,"mode":"id","value":"={{ $('Select Matching Workflows1').item.json.id }}"},"requestOptions":{}},"id":"c23093b7-af12-462b-acde-1ad833b88b8f","name":"Get Workflow JSON(s)","type":"n8n-nodes-base.n8n","position":[5712,2384],"typeVersion":1},{"parameters":{"url":"={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.url).toString() }}/api/v1/workflows/{{ $('Select Matching Workflows').item.json.id }}","sendHeaders":true,"headerParameters":{"parameters":[{"name":"X-N8N-API-KEY","value":"={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.api_key).toString() }}"}]},"options":{}},"id":"01461e13-0ced-4ade-ba76-f1e617590b9f","name":"Get Workflow JSON(s)1","type":"n8n-nodes-base.httpRequest","position":[7968,3376],"typeVersion":4.4}],"connections":{"Split Out":{"main":[[{"node":"Filter Our Archived Items","type":"main","index":0}]]},"Route Mode":{"main":[[{"node":"Get All Source Instance Workflows","type":"main","index":0}],[{"node":"Get Instance Information","type":"main","index":0}]]},"Set Source":{"main":[[{"node":"Merge Source and Target","type":"main","index":0}]]},"Set Target":{"main":[[{"node":"Merge Source and Target","type":"main","index":1}]]},"Select Workflows":{"main":[[{"node":"Split Out Workflows","type":"main","index":0}]]},"Select Workflows1":{"main":[[{"node":"Split Out Workflows1","type":"main","index":0}]]},"Select Workflows2":{"main":[[{"node":"Merge Source Instance","type":"main","index":1},{"node":"Merge Target Instance","type":"main","index":1}]]},"Source and Target":{"main":[[{"node":"Get Source Workflows With Pagination","type":"main","index":0}]]},"Create Workflow(s)":{"main":[[{"node":"Aggregate Workflows (Dynamic)","type":"main","index":0}]]},"On form submission":{"main":[[{"node":"Route Mode","type":"main","index":0}]]},"Aggregate Workflows":{"main":[[{"node":"Create JSON Workflow Options","type":"main","index":0}]]},"Create Workflow(s)1":{"main":[[{"node":"Aggregate Workflows (Static)","type":"main","index":0}]]},"Split Out Workflows":{"main":[[{"node":"Select Matching Workflows","type":"main","index":1}]]},"Get Workflow JSON(s)":{"main":[[{"node":"Strip Incompatible API Fields1","type":"main","index":0}]]},"Split Out Workflows1":{"main":[[{"node":"Select Matching Workflows1","type":"main","index":1}]]},"Get Workflow JSON(s)1":{"main":[[{"node":"Strip Incompatible API Fields","type":"main","index":0}]]},"Merge Source Instance":{"main":[[{"node":"Set Source","type":"main","index":0}]]},"Merge Target Instance":{"main":[[{"node":"Set Target","type":"main","index":0}]]},"Merge Source and Target":{"main":[[{"node":"Source and Target","type":"main","index":0}]]},"Set Source Name and URL":{"main":[[{"node":"Aggregate Workflow Options (Dynamic)","type":"main","index":0}]]},"Get Instance Information":{"main":[[{"node":"Set Source Name and URL","type":"main","index":0},{"node":"Merge Target Instance","type":"main","index":0},{"node":"Merge Source Instance","type":"main","index":0}]]},"Filter Our Archived Items":{"main":[[{"node":"Set Workflow Display Name (Dynamic)","type":"main","index":0},{"node":"Select Matching Workflows","type":"main","index":0}]]},"Select Matching Workflows":{"main":[[{"node":"Get Workflow JSON(s)1","type":"main","index":0}]]},"Filter Our Archived Items1":{"main":[[{"node":"Set Workflow Display Name (Static)","type":"main","index":0},{"node":"Select Matching Workflows1","type":"main","index":0}]]},"Select Matching Workflows1":{"main":[[{"node":"Get Workflow JSON(s)","type":"main","index":0}]]},"Aggregate Workflows (Static)":{"main":[[{"node":"Results (Static)","type":"main","index":0}]]},"Create JSON Workflow Options":{"main":[[{"node":"Select Workflows","type":"main","index":0}]]},"Aggregate Workflows (Dynamic)":{"main":[[{"node":"Results (Dynamic)","type":"main","index":0}]]},"Create JSON Workflow Options1":{"main":[[{"node":"Select Workflows1","type":"main","index":0}]]},"Create JSON Workflow Options2":{"main":[[{"node":"Select Workflows2","type":"main","index":0}]]},"Strip Incompatible API Fields":{"main":[[{"node":"Create Workflow(s)","type":"main","index":0}]]},"Strip Incompatible API Fields1":{"main":[[{"node":"Create Workflow(s)1","type":"main","index":0}]]},"Get All Source Instance Workflows":{"main":[[{"node":"Filter Our Archived Items1","type":"main","index":0}]]},"Set Workflow Display Name (Static)":{"main":[[{"node":"Aggregate Workflow Options (Static)","type":"main","index":0}]]},"Aggregate Workflow Options (Static)":{"main":[[{"node":"Create JSON Workflow Options1","type":"main","index":0}]]},"Set Workflow Display Name (Dynamic)":{"main":[[{"node":"Aggregate Workflows","type":"main","index":0}]]},"Aggregate Workflow Options (Dynamic)":{"main":[[{"node":"Create JSON Workflow Options2","type":"main","index":0}]]},"Get Source Workflows With Pagination":{"main":[[{"node":"Split Out","type":"main","index":0}]]}},"settings":{"executionOrder":"v1","binaryMode":"separate","availableInMCP":false},"staticData":null,"meta":{"templateCredsSetupCompleted":true},"pinData":{"On form submission":[{"json":{"formMode":"production","submittedAt":"2026-02-16T09:19:37.843-05:00","Choose A Mode":"Dynamic"}}]},"versionId":"29a3691e-6ce6-463c-893a-eef62d290f30","activeVersionId":null,"versionCounter":4,"triggerCount":0,"tags":[],"shared":[{"updatedAt":"2026-03-05T04:04:18.840Z","createdAt":"2026-03-05T04:04:18.840Z","role":"workflow:owner","workflowId":"UG5vdaPr2NAgc6kb","projectId":"DTJTg8hhkcscVupp","project":{"updatedAt":"2026-03-05T03:36:28.642Z","createdAt":"2026-03-05T03:35:34.496Z","id":"DTJTg8hhkcscVupp","name":"NGUYEN QUY <hoangquy2620@gmail.com>","type":"personal","icon":null,"description":null,"creatorId":"6432e1ca-39aa-49ed-9b01-6aeb2dbe5f50"}}],"versionMetadata":{"name":null,"description":null}},{"updatedAt":"2026-03-05T04:12:16.558Z","createdAt":"2026-03-05T04:12:16.558Z","id":"v2YFF2Er1ZrOCbQj","name":"backup-v2","description":null,"active":false,"isArchived":false,"nodes":[{"parameters":{"operation":"toJson","mode":"each","binaryPropertyName":"=data","options":{}},"type":"n8n-nodes-base.convertToFile","typeVersion":1.1,"position":[448,688],"id":"82ba3e5b-c09a-403b-8533-b8369377ecf3","name":"Convert to File"},{"parameters":{"rule":{"interval":[{}]}},"type":"n8n-nodes-base.scheduleTrigger","typeVersion":1.2,"position":[-1600,832],"id":"b807cebd-f1ec-4ff3-95b8-13ae9728d620","name":"Schedule Trigger"},{"parameters":{"name":"={{ $('Loop Over Items').item.json.name }}.json","driveId":{"__rl":true,"mode":"list","value":"My Drive"},"folderId":{"__rl":true,"value":"={{ $('CreateFolderWorkflows').first().json.id }}","mode":"id"},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[672,688],"id":"a20ccb24-8d91-44cc-81e8-e1f94c42764f","name":"UploadDrive","credentials":{"googleDriveOAuth2Api":{"id":"vc8mnCvZSj0TSAmn","name":"Google Drive account 2"}}},{"parameters":{"batchSize":20,"options":{}},"type":"n8n-nodes-base.splitInBatches","typeVersion":3,"position":[192,688],"id":"1ec79f44-9169-4c08-8154-ebaaa075fdf8","name":"Loop Over Items"},{"parameters":{"content":"## Backup toàn bộ workflow, credentials vào 1 file json all-{date}.json\n- Thuận tiện cho việc chuyển toàn bộ từ n8n này sang n8n khác","height":240,"width":1640},"type":"n8n-nodes-base.stickyNote","position":[-816,880],"typeVersion":1,"id":"aea29c60-8ba4-43e9-9dca-e83e564bd816","name":"Sticky Note"},{"parameters":{"content":"## Backup riêng lẻ từng workflow\n- Tạo thành từng file workflow riêng lẻ và lưu trong trong thư mục workflows","height":260,"width":1640},"type":"n8n-nodes-base.stickyNote","position":[-816,608],"typeVersion":1,"id":"f7b13423-9f81-4e8b-b20c-8d4e66396ed7","name":"Sticky Note1"},{"parameters":{"content":"## Backup all credentials\n- Tạo thành 1 file credentials-{date}.json","height":240,"width":1640},"type":"n8n-nodes-base.stickyNote","position":[-816,1152],"typeVersion":1,"id":"95c47d1e-ce0e-4564-b7c7-1441886b5df9","name":"Sticky Note2"},{"parameters":{},"type":"n8n-nodes-backup-credentials.backupCredential","typeVersion":1,"position":[-768,960],"id":"0a78d193-59c0-4463-88f9-616c8409c4cf","name":"Backup Credential"},{"parameters":{"operation":"completion","completionTitle":"Tải lên thành công !","completionMessage":"=Bạn đã tải lên file import thành công, hệ thống sẽ tự động import và thông báo sau khi hoàn thành ! ","options":{}},"type":"n8n-nodes-base.form","typeVersion":1,"position":[-1520,1584],"id":"d7bdc46b-12f3-40a3-91a7-c912ce6fdb30","name":"Form","webhookId":"760e50fa-5487-4747-ad40-f3678161a358"},{"parameters":{"operation":"fromJson","binaryPropertyName":"File___json","options":{}},"type":"n8n-nodes-base.extractFromFile","typeVersion":1,"position":[-1056,1584],"id":"eababa1d-b8be-4dfc-901a-6f87caf1e36c","name":"Extract from File"},{"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict","version":2},"conditions":[{"id":"64147178-2b4f-4d0c-8d7a-aa4517d80c23","leftValue":"={{ $('data').first().json['Ghi đè'] }}","rightValue":"Không","operator":{"type":"string","operation":"equals","name":"filter.operator.equals"}}],"combinator":"and"},"options":{}},"type":"n8n-nodes-base.if","typeVersion":2.2,"position":[-608,1920],"id":"ead0c109-b6d2-4f1b-93e1-3286b26f53ad","name":"If2"},{"parameters":{"rules":{"values":[{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict","version":2},"conditions":[{"leftValue":"={{ $('type').first().json.type }}","rightValue":"workflow","operator":{"type":"string","operation":"equals"},"id":"20f18328-de46-42bd-ad12-0daf34ec844c"}],"combinator":"and"},"renameOutput":true,"outputKey":"Workflows"},{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict","version":2},"conditions":[{"id":"ddb3a508-40fe-4f0d-9aa8-b2b9355e3cd5","leftValue":"={{ $('type').first().json.type }}","rightValue":"credential","operator":{"type":"string","operation":"equals","name":"filter.operator.equals"}}],"combinator":"and"},"renameOutput":true,"outputKey":"Credentials"}]},"options":{}},"type":"n8n-nodes-base.switch","typeVersion":3.2,"position":[112,1920],"id":"bd9551ce-a45e-4abe-bcc5-1e369d58cfdb","name":"Switch"},{"parameters":{"operation":"restoreCredentials"},"type":"n8n-nodes-backup-credentials.backupCredential","typeVersion":1,"position":[400,2000],"id":"f404481e-b2d9-47c2-912c-e0d1072fc0ed","name":"Restore Credentials"},{"parameters":{"operation":"restoreWorkflows"},"type":"n8n-nodes-backup-credentials.backupCredential","typeVersion":1,"position":[400,1840],"id":"dfb2b117-1596-4584-b256-2c7a1e387571","name":"Restore Workflows"},{"parameters":{},"type":"n8n-nodes-base.merge","typeVersion":3.1,"position":[656,1920],"id":"74db9ac7-75b4-4f7c-b6b5-b27aa135a6c5","name":"Merge"},{"parameters":{"fieldToSplitOut":"data","options":{}},"type":"n8n-nodes-base.splitOut","typeVersion":1,"position":[-832,1920],"id":"ccad2560-f56a-4e98-95b9-e0e7aa090676","name":"Split Out"},{"parameters":{"operation":"toJson","options":{"format":true}},"type":"n8n-nodes-base.convertToFile","typeVersion":1.1,"position":[-160,1920],"id":"07f6ea73-ea42-4abe-bc2a-4de9e472964c","name":"Convert to File3"},{"parameters":{"formTitle":"Khôi phục Workflows, Credentials ","formDescription":"Form hỗ trợ import Workflows, Credentials từ file export.\n\nGhi chú:\n- Hỗ trợ import nhiều file cùng lúc\n- Chọn Ghi đè thì hệ thống sẽ ghi đè Workflows, Credentials có cùng ID\n- Nếu chọn \"không\" hệ thống sẽ import thành Workflows, Credentials mới","formFields":{"values":[{"fieldLabel":"File *.json","fieldType":"file","acceptFileTypes":".json","requiredField":true},{"fieldLabel":"Ghi đè","fieldType":"dropdown","fieldOptions":{"values":[{"option":"Có"},{"option":"Không"}]},"requiredField":true}]},"options":{"appendAttribution":false,"customCss":":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors */\n\t--color-background: #fbfcfe;\n\t--color-test-notice-text: #e6a23d;\n\t--color-test-notice-bg: #fefaf6;\n\t--color-test-notice-border: #f6dcb7;\n\t--color-card-bg: #ffffff;\n\t--color-card-border: #dbdfe7;\n\t--color-card-shadow: rgba(99, 77, 255, 0.06);\n\t--color-link: #7e8186;\n\t--color-header: #525356;\n\t--color-label: #555555;\n\t--color-input-border: #dbdfe7;\n\t--color-input-text: #71747A;\n\t--color-focus-border: rgb(90, 76, 194);\n\t--color-submit-btn-bg: #ff6d5a;\n\t--color-submit-btn-text: #ffffff;\n\t--color-error: #ea1f30;\n\t--color-required: #ff6d5a;\n\t--color-clear-button-bg: #7e8186;\n\t--color-html-text: #555;\n\t--color-html-link: #ff6d5a;\n\t--color-header-subtext: #7e8186;\n\n\t/* Border Radii */\n\t--border-radius-card: 8px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 8px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.form-header p {\n  text-align: left;\n}"}},"type":"n8n-nodes-base.formTrigger","typeVersion":2.2,"position":[-1760,1584],"id":"f8eb7f1e-ff2b-4f5f-89fe-01775d635a2c","name":"Form import Workflows/Credentials","webhookId":"114c7304-09a8-4036-b3bd-dc3239b15576"},{"parameters":{"assignments":{"assignments":[{"id":"65ee94cd-022d-4f66-8aba-80e9a1aec190","name":"type","value":"={{ $json.data[0].nodes ? 'workflow' : 'credential' }}","type":"string"}]},"includeOtherFields":true,"options":{}},"type":"n8n-nodes-base.set","typeVersion":3.4,"position":[-1072,1920],"id":"b4fa1c78-8327-4c85-b773-2af24e62f969","name":"type"},{"parameters":{"includeOtherFields":true,"options":{}},"type":"n8n-nodes-base.set","typeVersion":3.4,"position":[-1296,1584],"id":"fc2fe997-d81b-4a4f-b566-2bc7e68f5ab0","name":"data"},{"parameters":{"assignments":{"assignments":[{"id":"519634ba-80c6-4593-99ac-1b6551f1695d","name":"id","value":"={{ $json.id.split('')\n    .sort(() => Math.random() - 0.5)\n    .join('') }}","type":"string"},{"id":"4b20db54-4b05-4753-9647-866b6708a795","name":"name","value":"={{ $json.name }} - {{ $json.id.split('')\n    .sort(() => Math.random() - 0.5)\n    .join('') }}","type":"string"}]},"includeOtherFields":true,"options":{"stripBinary":true}},"type":"n8n-nodes-base.set","typeVersion":3.4,"position":[-368,1840],"id":"7f1202b6-148d-4f53-b119-841c40d4dc65","name":"Edit Fields","notesInFlow":true,"notes":"Thay đổi thông tin name và id cũ để không ghi đè"},{"parameters":{"assignments":{"assignments":[{"id":"b6105bc7-a38d-47a9-9321-258abe01d2db","name":"data","value":"={{ Array.isArray($json.data) ? $json.data : [$json.data] }}","type":"array"}]},"options":{}},"type":"n8n-nodes-base.set","typeVersion":3.4,"position":[-1296,1920],"id":"599c028c-4965-4900-bbef-c6ecf9099906","name":"Edit Fields1"},{"parameters":{"operation":"fromJson","destinationKey":"wf","options":{}},"type":"n8n-nodes-base.extractFromFile","typeVersion":1,"position":[-320,688],"id":"322a805d-a55c-44da-aecb-da40ae9b50c4","name":"Extract from File1"},{"parameters":{"fieldToSplitOut":"wf","options":{}},"type":"n8n-nodes-base.splitOut","typeVersion":1,"position":[-80,688],"id":"76dc4c52-94d8-47d3-9af9-a19edf08ed67","name":"Split Out2"},{"parameters":{"operation":"backupWorkflows"},"type":"n8n-nodes-backup-credentials.backupCredential","typeVersion":1,"position":[-528,688],"id":"25b16212-5e20-4206-bb24-402bfb20cee5","name":"Backup Workflows"},{"parameters":{"options":{}},"type":"n8n-nodes-base.splitInBatches","typeVersion":3,"position":[-1520,1920],"id":"ef0b0abd-bec1-4faa-9227-deffeab5f2cb","name":"Loop Over Items1"},{"parameters":{},"type":"n8n-nodes-base.noOp","typeVersion":1,"position":[-368,2000],"id":"d755bfd2-4c2f-4afd-95dc-b5ff497a7230","name":"next"},{"parameters":{"operation":"fromJson","destinationKey":"cr","options":{}},"type":"n8n-nodes-base.extractFromFile","typeVersion":1,"position":[-528,960],"id":"cd5938f2-1e2a-4064-a972-622cd71c062c","name":"Extract from File2"},{"parameters":{"mode":"combine","combineBy":"combineByPosition","options":{}},"type":"n8n-nodes-base.merge","typeVersion":3.1,"position":[-80,944],"id":"5df6f0a8-1470-4653-8844-235f3842ad48","name":"Merge1"},{"parameters":{"operation":"toJson","mode":"each","binaryPropertyName":"=data","options":{}},"type":"n8n-nodes-base.convertToFile","typeVersion":1.1,"position":[192,944],"id":"3c2380db-809b-4a3c-bc96-dd84861ee4a5","name":"Convert to File1"},{"parameters":{"jsCode":"\nreturn [{data: $input.first().json.data.wf},{data: $input.first().json.data.cr}];"},"type":"n8n-nodes-base.code","typeVersion":2,"position":[-592,1504],"id":"82f46d29-0fef-4e2f-9162-5bf997fb6d1f","name":"Code2"},{"parameters":{},"type":"n8n-nodes-base.merge","typeVersion":3.1,"position":[-400,1584],"id":"fbe3e41a-2ee4-4bf8-91be-e8f61bc441a3","name":"Merge3"},{"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"loose","version":2},"conditions":[{"id":"a6dcf2e7-c52b-4069-b27c-f8b7312c47bc","leftValue":"={{ $json.data.wf }}","rightValue":"","operator":{"type":"string","operation":"exists","singleValue":true}}],"combinator":"and"},"looseTypeValidation":true,"options":{}},"type":"n8n-nodes-base.if","typeVersion":2.2,"position":[-832,1584],"id":"b524f1a1-fe50-4781-876f-c6d9b20fe703","name":"If"},{"parameters":{},"type":"n8n-nodes-base.noOp","typeVersion":1,"position":[-176,1584],"id":"f1c6f2e3-70ba-4780-992d-8c0028e0f44e","name":"continue"},{"parameters":{"name":"=all-{{ $('config').first().json.date }}.json","driveId":{"__rl":true,"mode":"list","value":"My Drive"},"folderId":{"__rl":true,"value":"={{ $('NewFolderBackup').first().json.id }}","mode":"id"},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[448,944],"id":"0da31996-45c3-4a2f-85aa-895453725dbc","name":"Upload File Backup All","credentials":{"googleDriveOAuth2Api":{"id":"vc8mnCvZSj0TSAmn","name":"Google Drive account 2"}}},{"parameters":{"content":"## Backup all workflows\n- Tạo thành 1 file workflows-{date}.json","height":240,"width":1640},"type":"n8n-nodes-base.stickyNote","position":[-816,352],"typeVersion":1,"id":"40ebd682-05ce-4b6f-923b-5cf7fe4afb73","name":"Sticky Note3"},{"parameters":{"name":"=workflows-{{ $('config').first().json.date }}.json","driveId":{"__rl":true,"mode":"list","value":"My Drive"},"folderId":{"__rl":true,"value":"={{ $('NewFolderBackup').first().json.id }}","mode":"id"},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[-320,400],"id":"e6a546d5-ea1d-4e32-ae83-1bd3d5ad600d","name":"Upload File Backup Workflows","credentials":{"googleDriveOAuth2Api":{"id":"vc8mnCvZSj0TSAmn","name":"Google Drive account 2"}}},{"parameters":{"name":"=credentials-{{ $('config').first().json.date }}.json","driveId":{"__rl":true,"mode":"list","value":"My Drive"},"folderId":{"__rl":true,"value":"={{ $('NewFolderBackup').first().json.id }}","mode":"id"},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[-528,1232],"id":"d8905680-908f-4345-9401-014f769b85a1","name":"Upload File Backup Credentials","credentials":{"googleDriveOAuth2Api":{"id":"vc8mnCvZSj0TSAmn","name":"Google Drive account 2"}}},{"parameters":{"assignments":{"assignments":[{"id":"9436aeb5-dd5b-4dc3-bfec-80ca015657bb","name":"date","value":"={{ $now.format('yyyy-MM-dd-HH-mm') }}","type":"string"}]},"options":{}},"type":"n8n-nodes-base.set","typeVersion":3.4,"position":[-1376,832],"id":"a198325b-f555-4e5e-af89-66618fb29ce1","name":"config"},{"parameters":{"resource":"folder","name":"workflows","driveId":{"__rl":true,"mode":"list","value":"My Drive"},"folderId":{"__rl":true,"value":"={{ $('NewFolderBackup').first().json.id }}","mode":"id"},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[-768,688],"id":"57d3bb60-dc71-4450-96a0-1e5ed5f9b917","name":"CreateFolderWorkflows","credentials":{"googleDriveOAuth2Api":{"id":"vc8mnCvZSj0TSAmn","name":"Google Drive account 2"}}},{"parameters":{"resource":"folder","name":"={{ $('config').first().json.date }}","driveId":{"__rl":true,"mode":"list","value":"My Drive"},"folderId":{"__rl":true,"value":"https://drive.google.com/drive/folders/1mJFDvlQUeE_0_zO7R6ESwb_5HaJNteEQ","mode":"url"},"options":{}},"type":"n8n-nodes-base.googleDrive","typeVersion":3,"position":[-1136,832],"id":"cecf9883-5ddb-49f0-a6ed-47cec5fc0c8b","name":"NewFolderBackup","credentials":{"googleDriveOAuth2Api":{"id":"vc8mnCvZSj0TSAmn","name":"Google Drive account 2"}}},{"parameters":{"content":"# Restore backup\n- Restore previously backed-up credentials from a file.\n- Khôi phục các thông tin đăng nhập đã sao lưu trước đó từ tệp tin.","height":700,"width":2660,"color":4},"type":"n8n-nodes-base.stickyNote","position":[-1792,1472],"typeVersion":1,"id":"1f021dfe-e19a-4bf6-b418-009e4fe86434","name":"Sticky Note4"},{"parameters":{"content":"# Backup workflow\n- Create a backup of all existing workflows/credentials and upload it to your Drive.\n- Tạo bản sao lưu của tất cả workflow/credential hiện có và tải lên Drive của bạn.","height":1160,"width":2660,"color":5},"type":"n8n-nodes-base.stickyNote","position":[-1792,240],"typeVersion":1,"id":"981c8dd2-46f6-4ea8-a255-9b635b14f739","name":"Sticky Note5"},{"parameters":{},"type":"n8n-nodes-base.noOp","typeVersion":1,"position":[-592,1648],"id":"f3a708e3-8b67-43b4-8471-0bbd4684d696","name":"next1"}],"connections":{"Convert to File":{"main":[[{"node":"UploadDrive","type":"main","index":0}]]},"Schedule Trigger":{"main":[[{"node":"config","type":"main","index":0}]]},"UploadDrive":{"main":[[{"node":"Loop Over Items","type":"main","index":0}]]},"Loop Over Items":{"main":[[],[{"node":"Convert to File","type":"main","index":0}]]},"Backup Credential":{"main":[[{"node":"Extract from File2","type":"main","index":0},{"node":"Upload File Backup Credentials","type":"main","index":0}]]},"Form":{"main":[[{"node":"data","type":"main","index":0}]]},"Extract from File":{"main":[[{"node":"If","type":"main","index":0}]]},"If2":{"main":[[{"node":"Edit Fields","type":"main","index":0}],[{"node":"next","type":"main","index":0}]]},"Switch":{"main":[[{"node":"Restore Workflows","type":"main","index":0}],[{"node":"Restore Credentials","type":"main","index":0}]]},"Restore Credentials":{"main":[[{"node":"Merge","type":"main","index":1}]]},"Restore Workflows":{"main":[[{"node":"Merge","type":"main","index":0}]]},"Merge":{"main":[[{"node":"Loop Over Items1","type":"main","index":0}]]},"Split Out":{"main":[[{"node":"If2","type":"main","index":0}]]},"Convert to File3":{"main":[[{"node":"Switch","type":"main","index":0}]]},"Form import Workflows/Credentials":{"main":[[{"node":"Form","type":"main","index":0}]]},"type":{"main":[[{"node":"Split Out","type":"main","index":0}]]},"data":{"main":[[{"node":"Extract from File","type":"main","index":0}]]},"Edit Fields":{"main":[[{"node":"Convert to File3","type":"main","index":0}]]},"Edit Fields1":{"main":[[{"node":"type","type":"main","index":0}]]},"Extract from File1":{"main":[[{"node":"Merge1","type":"main","index":0},{"node":"Split Out2","type":"main","index":0}]]},"Split Out2":{"main":[[{"node":"Loop Over Items","type":"main","index":0}]]},"Backup Workflows":{"main":[[{"node":"Extract from File1","type":"main","index":0},{"node":"Upload File Backup Workflows","type":"main","index":0}]]},"Loop Over Items1":{"main":[[],[{"node":"Edit Fields1","type":"main","index":0}]]},"next":{"main":[[{"node":"Convert to File3","type":"main","index":0}]]},"Extract from File2":{"main":[[{"node":"Merge1","type":"main","index":1}]]},"Merge1":{"main":[[{"node":"Convert to File1","type":"main","index":0}]]},"Convert to File1":{"main":[[{"node":"Upload File Backup All","type":"main","index":0}]]},"Code2":{"main":[[{"node":"Merge3","type":"main","index":0}]]},"Merge3":{"main":[[{"node":"continue","type":"main","index":0}]]},"If":{"main":[[{"node":"Code2","type":"main","index":0}],[{"node":"next1","type":"main","index":0}]]},"continue":{"main":[[{"node":"Loop Over Items1","type":"main","index":0}]]},"config":{"main":[[{"node":"NewFolderBackup","type":"main","index":0}]]},"CreateFolderWorkflows":{"main":[[{"node":"Backup Workflows","type":"main","index":0}]]},"NewFolderBackup":{"main":[[{"node":"Backup Credential","type":"main","index":0},{"node":"CreateFolderWorkflows","type":"main","index":0}]]},"next1":{"main":[[{"node":"Merge3","type":"main","index":1}]]}},"settings":{"executionOrder":"v1"},"staticData":null,"meta":{"templateCredsSetupCompleted":true,"instanceId":"f03dd7d9c390c21f2f6c1fcef602cbb70a6d3f88b1e7722773b012d0c9a14265"},"pinData":{},"versionId":"dee7ffd4-b599-4f9a-9fd3-bdd044b4732c","activeVersionId":null,"versionCounter":1,"triggerCount":0,"tags":[],"shared":[{"updatedAt":"2026-03-05T04:12:16.558Z","createdAt":"2026-03-05T04:12:16.558Z","role":"workflow:owner","workflowId":"v2YFF2Er1ZrOCbQj","projectId":"DTJTg8hhkcscVupp","project":{"updatedAt":"2026-03-05T03:36:28.642Z","createdAt":"2026-03-05T03:35:34.496Z","id":"DTJTg8hhkcscVupp","name":"NGUYEN QUY <hoangquy2620@gmail.com>","type":"personal","icon":null,"description":null,"creatorId":"6432e1ca-39aa-49ed-9b01-6aeb2dbe5f50"}}],"versionMetadata":{"name":null,"description":null}}]
+[
+  {
+    "updatedAt": "2026-03-05T03:37:20.833Z",
+    "createdAt": "2026-03-05T03:37:20.833Z",
+    "id": "q0TTJLHsweAx0qhS",
+    "name": "My workflow",
+    "description": null,
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [0, 0],
+        "id": "0b5bfef4-cf8d-4085-9886-60ca587ba359",
+        "name": "When clicking ‘Execute workflow’"
+      }
+    ],
+    "connections": {},
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate",
+      "availableInMCP": false
+    },
+    "staticData": null,
+    "meta": null,
+    "pinData": {},
+    "versionId": "6ba5fadb-53ab-499f-b602-a124f741f0ec",
+    "activeVersionId": null,
+    "versionCounter": 1,
+    "triggerCount": 0,
+    "tags": [],
+    "shared": [
+      {
+        "updatedAt": "2026-03-05T03:37:20.833Z",
+        "createdAt": "2026-03-05T03:37:20.833Z",
+        "role": "workflow:owner",
+        "workflowId": "q0TTJLHsweAx0qhS",
+        "projectId": "DTJTg8hhkcscVupp",
+        "project": {
+          "updatedAt": "2026-03-05T03:36:28.642Z",
+          "createdAt": "2026-03-05T03:35:34.496Z",
+          "id": "DTJTg8hhkcscVupp",
+          "name": "NGUYEN QUY <hoangquy2620@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "creatorId": "6432e1ca-39aa-49ed-9b01-6aeb2dbe5f50"
+        }
+      }
+    ],
+    "versionMetadata": { "name": null, "description": null }
+  },
+  {
+    "updatedAt": "2026-03-05T04:07:06.028Z",
+    "createdAt": "2026-03-05T04:04:18.840Z",
+    "id": "UG5vdaPr2NAgc6kb",
+    "name": "Workflow Importer",
+    "description": null,
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "formTitle": "N8n Workflow Loader",
+          "formDescription": "Load select workflows from your chosen n8n instance. ",
+          "formFields": {
+            "values": [
+              {
+                "fieldName": "Choose A Mode",
+                "fieldLabel": "Mode",
+                "fieldType": "dropdown",
+                "defaultValue": "Default",
+                "fieldOptions": {
+                  "values": [{ "option": "Default" }, { "option": "Dynamic" }]
+                },
+                "requiredField": true
+              }
+            ]
+          },
+          "options": {
+            "appendAttribution": false,
+            "buttonLabel": "Find Workflows",
+            "path": "6042ce10-424d-448f-b991-3127137d95dd",
+            "customCss": ":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}"
+          }
+        },
+        "id": "820291f7-cba3-4d28-94e5-12c7d53ecf2e",
+        "name": "On form submission",
+        "type": "n8n-nodes-base.formTrigger",
+        "position": [3472, 2560],
+        "webhookId": "6042ce10-424d-448f-b991-3127137d95dd",
+        "typeVersion": 2.4
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "/**\n * Build an n8n-API-safe workflow payload\n * using a strict allowlist (NOT a denylist).\n */\n\n// --------------------\n// Helpers\n// --------------------\n\nfunction pick(obj, allowedKeys) {\n  if (!obj || typeof obj !== 'object') return {};\n  return Object.fromEntries(\n    Object.entries(obj).filter(([key]) => allowedKeys.includes(key))\n  );\n}\n\nfunction cleanNode(node) {\n  return {\n    id: node.id,\n    name: node.name,\n    type: node.type,\n    typeVersion: node.typeVersion,\n    position: node.position,\n    parameters: node.parameters ?? {},\n    credentials: node.credentials ?? {},\n    disabled: node.disabled ?? false,\n    notes: node.notes,\n    notesInFlow: node.notesInFlow,\n  };\n}\n\n// --------------------\n// ENTRY POINT\n// --------------------\n\nconst source = $json;\n\n// ---- Top-level allowlist ----\nconst workflow = {\n  name: source.name,\n  nodes: source.nodes.map(cleanNode),\n  connections: source.connections,\n  settings: {\n    \"saveExecutionProgress\": true,\n    \"saveManualExecutions\": true,\n    \"saveDataErrorExecution\": \"all\",\n    \"saveDataSuccessExecution\": \"all\",\n    \"executionTimeout\": 3600,\n    \"timezone\": \"America/New_York\",\n    \"executionOrder\": \"v1\",\n    \"callerPolicy\": \"workflowsFromSameOwner\",\n    \"callerIds\": \"14, 18, 23\",\n    \"timeSavedPerExecution\": 1,\n    \"availableInMCP\": false\n  }\n};\n\n// ---- Settings allowlist ----\nconst ALLOWED_SETTINGS = [\n  'timezone',\n  'executionTimeout',\n  'saveExecutionProgress',\n  'saveManualExecutions',\n  'errorWorkflowId',\n];\n\nif (source.settings) {\n  const cleanedSettings = pick(source.settings, ALLOWED_SETTINGS);\n  if (Object.keys(cleanedSettings).length > 0) {\n    workflow.settings = cleanedSettings;\n  }\n}\n\n// ---- Optional staticData ----\nif (source.staticData) {\n  workflow.staticData = source.staticData;\n}\n\nreturn workflow;"
+        },
+        "id": "8a618616-f076-4541-ac2d-0b31f84cbc99",
+        "name": "Strip Incompatible API Fields",
+        "type": "n8n-nodes-base.code",
+        "position": [8192, 3376],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "version": 3,
+              "leftValue": "",
+              "caseSensitive": true,
+              "typeValidation": "strict"
+            },
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "20678e33-3415-4d80-890c-752435182ddd",
+                "operator": { "type": "boolean", "operation": "equals" },
+                "leftValue": "={{ $json.isArchived }}",
+                "rightValue": false
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "19bbaf88-7fb7-45df-9df3-dcf96bbbb516",
+        "name": "Filter Our Archived Items",
+        "type": "n8n-nodes-base.filter",
+        "position": [6400, 3376],
+        "typeVersion": 2.3
+      },
+      {
+        "parameters": { "aggregate": "aggregateAllItemData", "options": {} },
+        "id": "9cf1cffc-4882-4134-9b95-ebe623a2339d",
+        "name": "Aggregate Workflows",
+        "type": "n8n-nodes-base.aggregate",
+        "position": [6848, 3440],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "defineForm": "json",
+          "jsonOutput": "=[\n  {\n    \"fieldLabel\": \"workflows\",\n    \"fieldType\": \"checkbox\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  }\n]\n",
+          "options": {
+            "formTitle": "Select Workflows",
+            "buttonLabel": "Select Workflows",
+            "customCss": ":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"
+          }
+        },
+        "id": "0abfd10f-069a-47ea-923b-0ab4b2b6a886",
+        "name": "Select Workflows",
+        "type": "n8n-nodes-base.form",
+        "position": [7296, 3440],
+        "webhookId": "d6923eb5-f79c-4d3f-8108-9ba7bdb79a2b",
+        "typeVersion": 2.4
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "advanced": true,
+          "mergeByFields": {
+            "values": [{ "field1": "name", "field2": "workflows" }]
+          },
+          "outputDataFrom": "input1",
+          "options": {}
+        },
+        "id": "302eaba6-b759-459e-9476-ca01d6a1fae6",
+        "name": "Select Matching Workflows",
+        "type": "n8n-nodes-base.merge",
+        "position": [7744, 3376],
+        "typeVersion": 3.2
+      },
+      {
+        "parameters": { "fieldToSplitOut": "workflows", "options": {} },
+        "id": "d24f6e50-e1b2-4547-be3c-ae44eaa90031",
+        "name": "Split Out Workflows",
+        "type": "n8n-nodes-base.splitOut",
+        "position": [7520, 3440],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json.data;\n\nconst options = data\n  .map(item => `{\n  \"option\": \"${item.workflow_name}\"}`)\n  .join(\",\");\n\nreturn {\n  json: {\n    options,\n  },\n};"
+        },
+        "id": "14837ec1-ceb0-4a4d-9743-b05e03cdc010",
+        "name": "Create JSON Workflow Options",
+        "type": "n8n-nodes-base.code",
+        "position": [7072, 3440],
+        "typeVersion": 2
+      },
+      {
+        "parameters": { "fieldToSplitOut": "data", "options": {} },
+        "id": "fd34a03b-be91-4782-9770-5890a64fedf3",
+        "name": "Split Out",
+        "type": "n8n-nodes-base.splitOut",
+        "position": [6176, 3376],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "version": 3,
+                    "leftValue": "",
+                    "caseSensitive": true,
+                    "typeValidation": "strict"
+                  },
+                  "combinator": "and",
+                  "conditions": [
+                    {
+                      "id": "f9af535e-1cd8-43dd-9285-4f8185632c76",
+                      "operator": { "type": "string", "operation": "equals" },
+                      "leftValue": "={{ $json[\"Choose A Mode\"] }}",
+                      "rightValue": "Default"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "default"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "version": 3,
+                    "leftValue": "",
+                    "caseSensitive": true,
+                    "typeValidation": "strict"
+                  },
+                  "combinator": "and",
+                  "conditions": [
+                    {
+                      "id": "b33acb3e-d4de-444b-8913-16c0b13d906b",
+                      "operator": {
+                        "name": "filter.operator.equals",
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "leftValue": "={{ $json[\"Choose A Mode\"] }}",
+                      "rightValue": "Dynamic"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "dynamic"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "b2a921da-5b6b-482c-be58-f7246494b773",
+        "name": "Route Mode",
+        "type": "n8n-nodes-base.switch",
+        "position": [3696, 2560],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "/**\n * Build an n8n-API-safe workflow payload\n * using a strict allowlist (NOT a denylist).\n */\n\n// --------------------\n// Helpers\n// --------------------\n\nfunction pick(obj, allowedKeys) {\n  if (!obj || typeof obj !== 'object') return {};\n  return Object.fromEntries(\n    Object.entries(obj).filter(([key]) => allowedKeys.includes(key))\n  );\n}\n\nfunction cleanNode(node) {\n  return {\n    id: node.id,\n    name: node.name,\n    type: node.type,\n    typeVersion: node.typeVersion,\n    position: node.position,\n    parameters: node.parameters ?? {},\n    credentials: node.credentials ?? {},\n    disabled: node.disabled ?? false,\n    notes: node.notes,\n    notesInFlow: node.notesInFlow,\n  };\n}\n\n// --------------------\n// ENTRY POINT\n// --------------------\n\nconst source = $json;\n\n// ---- Top-level allowlist ----\nconst workflow = {\n  name: source.name,\n  nodes: source.nodes.map(cleanNode),\n  connections: source.connections,\n};\n\n// ---- Settings allowlist ----\nconst ALLOWED_SETTINGS = [\n  'timezone',\n  'executionTimeout',\n  'saveExecutionProgress',\n  'saveManualExecutions',\n  'errorWorkflowId',\n];\n\nif (source.settings) {\n  const cleanedSettings = pick(source.settings, ALLOWED_SETTINGS);\n  if (Object.keys(cleanedSettings).length > 0) {\n    workflow.settings = cleanedSettings;\n  }\n}\n\n// ---- Optional staticData ----\nif (source.staticData) {\n  workflow.staticData = source.staticData;\n}\n\nreturn workflow;"
+        },
+        "id": "8e3e7258-33f9-48fa-a739-9451d51edd81",
+        "name": "Strip Incompatible API Fields1",
+        "type": "n8n-nodes-base.code",
+        "position": [5936, 2384],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "version": 3,
+              "leftValue": "",
+              "caseSensitive": true,
+              "typeValidation": "strict"
+            },
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "20678e33-3415-4d80-890c-752435182ddd",
+                "operator": { "type": "boolean", "operation": "equals" },
+                "leftValue": "={{ $json.isArchived }}",
+                "rightValue": false
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "50f8f779-f724-4a1c-80bd-03e022e1f98c",
+        "name": "Filter Our Archived Items1",
+        "type": "n8n-nodes-base.filter",
+        "position": [4144, 2384],
+        "typeVersion": 2.3
+      },
+      {
+        "parameters": {
+          "defineForm": "json",
+          "jsonOutput": "=[\n  {\n    \"fieldLabel\": \"workflows\",\n    \"fieldType\": \"checkbox\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  }\n]\n",
+          "options": {
+            "formTitle": "Select Workflows",
+            "buttonLabel": "Select Workflows",
+            "customCss": ":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"
+          }
+        },
+        "id": "a5d8ff09-4a17-4063-9592-1755f15d39f9",
+        "name": "Select Workflows1",
+        "type": "n8n-nodes-base.form",
+        "position": [5040, 2464],
+        "webhookId": "ef927f26-9ac5-4967-b812-7dbe8df9db45",
+        "typeVersion": 2.4
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "advanced": true,
+          "mergeByFields": {
+            "values": [{ "field1": "name", "field2": "workflows" }]
+          },
+          "outputDataFrom": "input1",
+          "options": {}
+        },
+        "id": "385d093e-bb8b-45c9-8b3c-5a4a7515a325",
+        "name": "Select Matching Workflows1",
+        "type": "n8n-nodes-base.merge",
+        "position": [5488, 2384],
+        "typeVersion": 3.2
+      },
+      {
+        "parameters": { "fieldToSplitOut": "workflows", "options": {} },
+        "id": "225efe1e-09f9-499f-a0fe-5a596c53fe5f",
+        "name": "Split Out Workflows1",
+        "type": "n8n-nodes-base.splitOut",
+        "position": [5264, 2464],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json.data;\n\nconst options = data\n  .map(item => `{\n  \"option\": \"${item.workflow_name}\"}`)\n  .join(\",\");\n\nreturn {\n  json: {\n    options,\n  },\n};"
+        },
+        "id": "1998a6d8-37dc-492a-b54c-ee6f3f3fbd4a",
+        "name": "Create JSON Workflow Options1",
+        "type": "n8n-nodes-base.code",
+        "position": [4816, 2464],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "resource": "databasePage",
+          "operation": "getAll",
+          "databaseId": {
+            "__rl": true,
+            "mode": "list",
+            "value": "306785c0-cfab-80a8-9236-f9c9b14042b5",
+            "cachedResultUrl": "https://www.notion.so/306785c0cfab80a89236f9c9b14042b5",
+            "cachedResultName": "Granite n8n Keys"
+          },
+          "returnAll": true,
+          "options": {}
+        },
+        "id": "3df2abee-1eb1-4e78-bbad-e1c71f772bf4",
+        "name": "Get Instance Information",
+        "type": "n8n-nodes-base.notion",
+        "position": [3936, 3376],
+        "typeVersion": 2.2
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json.data;\n\nconst options = data\n  .map(item => `{\n  \"option\": \"${item.workflow_name}\"}`)\n  .join(\",\");\n\nreturn {\n  json: {\n    options,\n  },\n};"
+        },
+        "id": "1793a3f5-e2b7-44a2-af54-f664dbba0019",
+        "name": "Create JSON Workflow Options2",
+        "type": "n8n-nodes-base.code",
+        "position": [4624, 3600],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "0e1b7526-faf5-4001-ba27-3005836cc58f",
+                "name": "workflow_name",
+                "type": "string",
+                "value": "={{ $json.name }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "5aa22a9c-39d5-4fa4-994c-bbe36d37174c",
+        "name": "Set Source Name and URL",
+        "type": "n8n-nodes-base.set",
+        "position": [4176, 3600],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": {
+          "defineForm": "json",
+          "jsonOutput": "=[\n  {\n    \"fieldLabel\": \"source\",\n    \"fieldType\": \"dropdown\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  },\n  {\n    \"fieldLabel\": \"target\",\n    \"fieldType\": \"dropdown\",\n    \"fieldOptions\": {\n      \"values\": [\n        {{ $json.options }}\n      ]\n    }\n  }\n]\n",
+          "options": {
+            "formTitle": "Select Source Instance",
+            "buttonLabel": "Select Source Instance",
+            "customCss": ":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"
+          }
+        },
+        "id": "4adf61f8-6f68-4c5d-99ef-10c707c2e54a",
+        "name": "Select Workflows2",
+        "type": "n8n-nodes-base.form",
+        "position": [4848, 3600],
+        "webhookId": "d6923eb5-f79c-4d3f-8108-9ba7bdb79a2b",
+        "typeVersion": 2.4
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "a9355cc3-a088-47cb-a25b-2d6a7886efea",
+                "name": "type",
+                "type": "string",
+                "value": "=source"
+              },
+              {
+                "id": "03af0601-f7c7-48a9-96fe-27be9a08def5",
+                "name": "name",
+                "type": "string",
+                "value": "={{ $json.name }}"
+              },
+              {
+                "id": "851da7d5-da27-41fc-9dcb-8b85831518e3",
+                "name": "url",
+                "type": "string",
+                "value": "={{ $json.property_url }}"
+              },
+              {
+                "id": "bf6b054b-70c9-4639-8912-f0c3a0492a39",
+                "name": "id",
+                "type": "string",
+                "value": "={{ $json.id }}"
+              },
+              {
+                "id": "2a8178d4-e97c-48bb-9287-cdf5908f68e5",
+                "name": "api_key",
+                "type": "string",
+                "value": "={{ $json.property_api_key }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "d9486fb9-90f3-43be-8aa6-dcf3b5f928f7",
+        "name": "Set Source",
+        "type": "n8n-nodes-base.set",
+        "position": [5280, 3232],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "a9355cc3-a088-47cb-a25b-2d6a7886efea",
+                "name": "type",
+                "type": "string",
+                "value": "=target"
+              },
+              {
+                "id": "d65a1dab-d672-4e68-b282-57f876dfa91c",
+                "name": "name",
+                "type": "string",
+                "value": "={{ $json.name }}"
+              },
+              {
+                "id": "2bc3812b-f884-4e33-8647-e9876b836585",
+                "name": "url",
+                "type": "string",
+                "value": "={{ $json.property_url }}"
+              },
+              {
+                "id": "1bebcd7a-fbda-4c83-8512-db3f8c86bc74",
+                "name": "id",
+                "type": "string",
+                "value": "={{ $json.id }}"
+              },
+              {
+                "id": "9e23c106-67c2-43ed-a12a-adeae6650a23",
+                "name": "api_key",
+                "type": "string",
+                "value": "={{ $json.property_api_key }}"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "52030530-7981-4430-b4ea-a6bab465ff07",
+        "name": "Set Target",
+        "type": "n8n-nodes-base.set",
+        "position": [5280, 3488],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": {},
+        "id": "eed2ab41-9dd1-4354-9272-3dfbf54eca83",
+        "name": "Merge Source and Target",
+        "type": "n8n-nodes-base.merge",
+        "position": [5504, 3376],
+        "typeVersion": 3.2
+      },
+      {
+        "parameters": { "aggregate": "aggregateAllItemData", "options": {} },
+        "id": "4e1ec51d-9483-4865-954f-6de58f19a8ae",
+        "name": "Source and Target",
+        "type": "n8n-nodes-base.aggregate",
+        "position": [5728, 3376],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## How it works 🧠 (Workflow explanation)\n\nThis workflow lets you selectively import workflows between n8n instances using the n8n API and forms.\n\nInstead of bulk imports or manual exports, it dynamically retrieves workflows from a source instance and lets you choose exactly what to load into a target instance.\n\n### Here’s what happens:\n1. The workflow retrieves workflows from a source n8n instance via the API.\n2. A dynamic form is generated listing available workflows.\n3. You select which workflows to import.\n4. Selected workflows are formatted for API compatibility.\n5. Workflows are created in the target n8n instance.\n\n### This ensures:\n- No bulk imports  \n- No accidental overwrites  \n- Full control over what gets moved  \n- Safe, API-driven workflow creation  \n\n## Setup steps ⚙️\n\n**Estimated setup time:** 2–5 minutes\n\n### Simple mode (default)\n1. Add API credentials for the source n8n instance.\n2. Add API credentials for the target n8n instance.\n3. Execute the workflow and select workflows to import.\n\n### Dynamic mode (optional)\n1. Connect a database (e.g. Notion or Supabase) containing:\n   - n8n instance URLs  \n   - n8n API keys  \n2. Select the source and target instances via the form.\n3. Choose which workflows to import and run.\n\nOnce credentials are connected, the workflow is ready to use 🚀",
+          "height": 912,
+          "width": 640
+        },
+        "id": "1a781243-fd0d-49b6-a057-e27fb5f064eb",
+        "name": "Sticky Note3",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [2704, 1856],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "advanced": true,
+          "mergeByFields": {
+            "values": [{ "field1": "name", "field2": "source" }]
+          },
+          "outputDataFrom": "input1",
+          "options": {}
+        },
+        "id": "eb97e2a4-2f5e-4388-9376-2d6c613037ea",
+        "name": "Merge Source Instance",
+        "type": "n8n-nodes-base.merge",
+        "position": [5056, 3232],
+        "typeVersion": 3.2
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "advanced": true,
+          "mergeByFields": {
+            "values": [{ "field1": "name", "field2": "target" }]
+          },
+          "outputDataFrom": "input1",
+          "options": {}
+        },
+        "id": "20cd0055-9071-4ec3-a10f-da50194c4465",
+        "name": "Merge Target Instance",
+        "type": "n8n-nodes-base.merge",
+        "position": [5056, 3488],
+        "typeVersion": 3.2
+      },
+      {
+        "parameters": {
+          "content": "## 🔁 Mode selection (static vs dynamic)\n\nThis section determines how the source and target n8n instances are configured.\n\n**Simple mode**\n- Uses n8n API credentials configured directly in the workflow\n- Source and target instances are fixed\n- Fastest way to get started\n\n**Dynamic mode**\n- Loads instance URLs and API keys from an external database (e.g. Notion)\n- Lets you select source and target instances via a form\n- Ideal for managing multiple n8n instances securely\n\nBoth modes use the same import logic downstream; only the instance configuration differs.",
+          "height": 624,
+          "width": 544,
+          "color": 7
+        },
+        "id": "f489d1f2-82c4-431e-86a2-a49b2b267427",
+        "name": "Sticky Note",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [3360, 2144],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Discover & Select Workflows (static mode)\n\nThis section retrieves workflows from the source n8n instance and prepares them for user selection.\n\n**What happens**\n- Fetches all available workflows via the n8n API\n- Filters out archived or inactive workflows\n- Aggregates results into a single list\n- Builds a dynamic selection form (JSON mode)\n\nYou then select exactly which workflows to import.  \nOnly selected workflows continue downstream.",
+          "height": 576,
+          "width": 1728,
+          "color": 7
+        },
+        "id": "85c1cf4c-e8c9-4b9d-b4da-579ec0d9c098",
+        "name": "Sticky Note1",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [4096, 2064],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Import & Clean Workflows\n\nThis section prepares selected workflows for safe import into the target n8n instance.\n\n**What happens**\n- Retrieves each selected workflow via the n8n API\n- Removes fields that are incompatible with workflow creation\n- Normalises the workflow structure for API import\n- Creates the workflow in the target instance\n\nThis ensures workflows are imported cleanly without conflicts or invalid metadata.",
+          "height": 576,
+          "width": 448,
+          "color": 7
+        },
+        "id": "70bc7294-b6a6-4ac1-bb46-37bbc9832aa9",
+        "name": "Sticky Note2",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [5872, 2064],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Structure Success Message\n\nFormats the final result for each processed workflow by creating a clean summary showing whether each workflow was created or failed.",
+          "height": 576,
+          "width": 416,
+          "color": 7
+        },
+        "id": "c10bb537-46e5-4e1f-bb15-6e5b10539d97",
+        "name": "Sticky Note6",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [6352, 2064],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Discover workflows\n\nThis section retrieves all workflows from the selected n8n instance.\n\nIt:\n- Calls the n8n `/api/v1/workflows` endpoint\n- Filters out archived workflows\n- Aggregates active workflows into a single list\n\nPagination is handled using a cursor-based approach, ensuring all workflows are retrieved even on large instances.",
+          "height": 576,
+          "width": 640,
+          "color": 7
+        },
+        "id": "1de8f24b-cd7d-411c-b989-3b7411db6928",
+        "name": "Sticky Note4",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [5888, 3104],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Select source and target instances (dynamic mode)\n\nThis section builds the final **Source and Target** payload by combining:\n\n- **Instance records** pulled from your database (e.g. Notion)\n- The user’s form selections (which instance is “source” and which is “target”)\n\n### What happens\n1. **Get Instance Information** loads all saved instances (URL + API key + display name).\n2. Two branches prepare each side:\n   - **Merge Source Instance → Set Source**\n   - **Merge Target Instance → Set Target**\n3. **Merge Source and Target** appends both objects into one array.\n4. **Source and Target** outputs a single structure used downstream to dynamically set:\n   - The base URL (instance URL)\n   - The API key header\n   - The instance role (`source` vs `target`)\n\n✅ Outcome: downstream nodes can reference the selected instances without hardcoding credentials in the workflow.\n⚠️ Keep API keys in a secure database, not inside n8n nodes or sticky notes.",
+          "height": 928,
+          "width": 1760,
+          "color": 7
+        },
+        "id": "87ac6e8a-8a6c-4157-83d5-3f1253369cec",
+        "name": "Sticky Note5",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [3904, 2864],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Select workflows\n\nBuilds a dynamic form that allows you to choose which workflows to import.\n\nIt:\n- Converts the discovered workflows into form options\n- Presents them using an n8n Form node\n- Passes only selected workflows downstream\n\nOnly workflows selected by the user continue to the import stage.",
+          "height": 576,
+          "width": 1520,
+          "color": 7
+        },
+        "id": "db01adb8-18cc-48c5-a12a-579a950b8fc1",
+        "name": "Sticky Note7",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [6576, 3104],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Import & clean workflows\n\nThis section prepares selected workflows for safe import into the target n8n instance.\n\n**What happens**\n- Retrieves each selected workflow via the n8n API\n- Removes fields incompatible with workflow creation\n- Normalises the workflow structure for import\n- Creates the workflow in the target instance\n\nThis ensures workflows are imported cleanly without conflicts or invalid metadata.",
+          "height": 656,
+          "width": 448,
+          "color": 7
+        },
+        "id": "f3ff1bda-738a-4a83-aa67-fe76420ebd9c",
+        "name": "Sticky Note8",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [8128, 3024],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "content": "## Structure success message\n\nFormats the final result for each processed workflow.\n\nCreates a clear summary showing whether each workflow was successfully created or failed, ensuring a consistent and easy-to-read output.",
+          "height": 576,
+          "width": 416,
+          "color": 7
+        },
+        "id": "d4440381-9553-45b1-a0b5-d6f7d022441c",
+        "name": "Sticky Note9",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [8608, 3104],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $('Source and Target').first().json.data.filter(item => item.type === 'target').map(item => item.url).toString() }}/api/v1/workflows",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-N8N-API-KEY",
+                "value": "={{ $('Source and Target').first().json.data.filter(item => item.type === 'target').map(item => item.api_key).toString() }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.toJsonString() }}",
+          "options": {}
+        },
+        "id": "91e77036-3de6-43ad-9e2c-d5586dcfcc13",
+        "name": "Create Workflow(s)",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [8416, 3376],
+        "typeVersion": 4.4
+      },
+      {
+        "parameters": {
+          "operation": "create",
+          "workflowObject": "={{ $json.toJsonString() }}",
+          "requestOptions": {}
+        },
+        "id": "84f19ea6-6c33-4302-99fe-2b9a56f0db8c",
+        "name": "Create Workflow(s)1",
+        "type": "n8n-nodes-base.n8n",
+        "position": [6160, 2384],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "0e1b7526-faf5-4001-ba27-3005836cc58f",
+                "name": "workflow_name",
+                "type": "string",
+                "value": "={{ $json.name }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "8d1b3ea4-9595-469b-a20e-2c95d702f595",
+        "name": "Set Workflow Display Name (Dynamic)",
+        "type": "n8n-nodes-base.set",
+        "position": [6624, 3440],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "0e1b7526-faf5-4001-ba27-3005836cc58f",
+                "name": "workflow_name",
+                "type": "string",
+                "value": "={{ $json.name }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "7463490c-08cc-488c-90a4-8a8fbb922178",
+        "name": "Set Workflow Display Name (Static)",
+        "type": "n8n-nodes-base.set",
+        "position": [4368, 2464],
+        "typeVersion": 3.4
+      },
+      {
+        "parameters": { "aggregate": "aggregateAllItemData", "options": {} },
+        "id": "5838a5f4-08d0-40c9-9588-9160e5dd54a9",
+        "name": "Aggregate Workflows (Dynamic)",
+        "type": "n8n-nodes-base.aggregate",
+        "position": [8640, 3376],
+        "typeVersion": 1
+      },
+      {
+        "parameters": { "aggregate": "aggregateAllItemData", "options": {} },
+        "id": "eeeef23b-6f4b-43e4-9d49-fc4fa0e1d22d",
+        "name": "Aggregate Workflows (Static)",
+        "type": "n8n-nodes-base.aggregate",
+        "position": [6384, 2384],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "operation": "completion",
+          "completionTitle": "Results",
+          "completionMessage": "={{ $json.data.map(item =>\n`${item.is_empty === true ? item.name + ' - Failed ❌' : item.name + ' - Success! ✅'}`\n).join('\\n\\n') }}",
+          "options": {
+            "customCss": ":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"
+          }
+        },
+        "id": "1d62919c-a798-4d31-9a7e-0a004adfe2af",
+        "name": "Results (Dynamic)",
+        "type": "n8n-nodes-base.form",
+        "position": [8864, 3376],
+        "webhookId": "50111f86-1e6e-44f9-9d76-8add726b5668",
+        "typeVersion": 2.4
+      },
+      {
+        "parameters": {
+          "operation": "completion",
+          "completionTitle": "Results",
+          "completionMessage": "={{ $json.data.map(item =>\n`${item.is_empty === true ? item.name + ' - Failed ❌' : item.name + ' - Success! ✅'}`\n).join('\\n\\n') }}",
+          "options": {
+            "customCss": ":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors - Granite Marketing Dark Theme */\n\t--color-background: #171717;\n\t--color-test-notice-text: #fbbf24;\n\t--color-test-notice-bg: #1f1f1f;\n\t--color-test-notice-border: #404040;\n\t--color-card-bg: #1e1e1e;\n\t--color-card-border: #404040;\n\t--color-card-shadow: rgba(0, 0, 0, 0.3);\n\t--color-link: #a5a5a5;\n\t--color-header: #f5f5f5;\n\t--color-label: #d4d4d4;\n\t--color-input-border: #404040;\n\t--color-input-text: #e5e5e5;\n\t--color-focus-border: #4ade80;\n\t--color-submit-btn-bg: #4ade80;\n\t--color-submit-btn-text: #171717;\n\t--color-error: #f87171;\n\t--color-required: #4ade80;\n\t--color-clear-button-bg: #525252;\n\t--color-html-text: #d4d4d4;\n\t--color-html-link: #4ade80;\n\t--color-header-subtext: #a5a5a5;\n\n\t/* Border Radii - Matching Granite Marketing */\n\t--border-radius-card: 12px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 12px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.multiselect {\n  max-height: 300px;\n  overflow: scroll;\n}"
+          }
+        },
+        "id": "5b827fc6-1b79-478d-819e-45966edca64b",
+        "name": "Results (Static)",
+        "type": "n8n-nodes-base.form",
+        "position": [6608, 2384],
+        "webhookId": "d8aa349e-f077-43a8-984e-9e830d680f11",
+        "typeVersion": 2.4
+      },
+      {
+        "parameters": { "aggregate": "aggregateAllItemData", "options": {} },
+        "id": "4fb34de4-e330-4a61-a138-3c9d32fae6ca",
+        "name": "Aggregate Workflow Options (Static)",
+        "type": "n8n-nodes-base.aggregate",
+        "position": [4592, 2464],
+        "typeVersion": 1
+      },
+      {
+        "parameters": { "aggregate": "aggregateAllItemData", "options": {} },
+        "id": "e3ea50c9-46f0-4111-8f33-0446a5ce68e5",
+        "name": "Aggregate Workflow Options (Dynamic)",
+        "type": "n8n-nodes-base.aggregate",
+        "position": [4400, 3600],
+        "typeVersion": 1
+      },
+      {
+        "parameters": { "filters": {}, "requestOptions": {} },
+        "id": "e4f47619-d2b0-4368-9c6e-735b590b5611",
+        "name": "Get All Source Instance Workflows",
+        "type": "n8n-nodes-base.n8n",
+        "position": [3920, 2384],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "url": "={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.url).toString() }}/api/v1/workflows",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-N8N-API-KEY",
+                "value": "={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.api_key).toString() }}"
+              }
+            ]
+          },
+          "options": {
+            "pagination": {
+              "pagination": {
+                "parameters": {
+                  "parameters": [
+                    {
+                      "name": "cursor",
+                      "value": "={{ $response.body.nextCursor }}"
+                    }
+                  ]
+                },
+                "paginationCompleteWhen": "receiveSpecificStatusCodes",
+                "statusCodesWhenComplete": "400",
+                "requestInterval": 1000
+              }
+            }
+          }
+        },
+        "id": "f8b34d0e-da75-4b54-9c23-edb81a61a5be",
+        "name": "Get Source Workflows With Pagination",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [5952, 3376],
+        "typeVersion": 4.4
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "workflowId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "={{ $('Select Matching Workflows1').item.json.id }}"
+          },
+          "requestOptions": {}
+        },
+        "id": "c23093b7-af12-462b-acde-1ad833b88b8f",
+        "name": "Get Workflow JSON(s)",
+        "type": "n8n-nodes-base.n8n",
+        "position": [5712, 2384],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "url": "={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.url).toString() }}/api/v1/workflows/{{ $('Select Matching Workflows').item.json.id }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-N8N-API-KEY",
+                "value": "={{ $('Source and Target').first().json.data.filter(item => item.type === 'source').map(item => item.api_key).toString() }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "01461e13-0ced-4ade-ba76-f1e617590b9f",
+        "name": "Get Workflow JSON(s)1",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [7968, 3376],
+        "typeVersion": 4.4
+      }
+    ],
+    "connections": {
+      "Split Out": {
+        "main": [
+          [{ "node": "Filter Our Archived Items", "type": "main", "index": 0 }]
+        ]
+      },
+      "Route Mode": {
+        "main": [
+          [
+            {
+              "node": "Get All Source Instance Workflows",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [{ "node": "Get Instance Information", "type": "main", "index": 0 }]
+        ]
+      },
+      "Set Source": {
+        "main": [
+          [{ "node": "Merge Source and Target", "type": "main", "index": 0 }]
+        ]
+      },
+      "Set Target": {
+        "main": [
+          [{ "node": "Merge Source and Target", "type": "main", "index": 1 }]
+        ]
+      },
+      "Select Workflows": {
+        "main": [
+          [{ "node": "Split Out Workflows", "type": "main", "index": 0 }]
+        ]
+      },
+      "Select Workflows1": {
+        "main": [
+          [{ "node": "Split Out Workflows1", "type": "main", "index": 0 }]
+        ]
+      },
+      "Select Workflows2": {
+        "main": [
+          [
+            { "node": "Merge Source Instance", "type": "main", "index": 1 },
+            { "node": "Merge Target Instance", "type": "main", "index": 1 }
+          ]
+        ]
+      },
+      "Source and Target": {
+        "main": [
+          [
+            {
+              "node": "Get Source Workflows With Pagination",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Create Workflow(s)": {
+        "main": [
+          [
+            {
+              "node": "Aggregate Workflows (Dynamic)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "On form submission": {
+        "main": [[{ "node": "Route Mode", "type": "main", "index": 0 }]]
+      },
+      "Aggregate Workflows": {
+        "main": [
+          [
+            {
+              "node": "Create JSON Workflow Options",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Create Workflow(s)1": {
+        "main": [
+          [
+            {
+              "node": "Aggregate Workflows (Static)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Split Out Workflows": {
+        "main": [
+          [{ "node": "Select Matching Workflows", "type": "main", "index": 1 }]
+        ]
+      },
+      "Get Workflow JSON(s)": {
+        "main": [
+          [
+            {
+              "node": "Strip Incompatible API Fields1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Split Out Workflows1": {
+        "main": [
+          [{ "node": "Select Matching Workflows1", "type": "main", "index": 1 }]
+        ]
+      },
+      "Get Workflow JSON(s)1": {
+        "main": [
+          [
+            {
+              "node": "Strip Incompatible API Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Source Instance": {
+        "main": [[{ "node": "Set Source", "type": "main", "index": 0 }]]
+      },
+      "Merge Target Instance": {
+        "main": [[{ "node": "Set Target", "type": "main", "index": 0 }]]
+      },
+      "Merge Source and Target": {
+        "main": [[{ "node": "Source and Target", "type": "main", "index": 0 }]]
+      },
+      "Set Source Name and URL": {
+        "main": [
+          [
+            {
+              "node": "Aggregate Workflow Options (Dynamic)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Instance Information": {
+        "main": [
+          [
+            { "node": "Set Source Name and URL", "type": "main", "index": 0 },
+            { "node": "Merge Target Instance", "type": "main", "index": 0 },
+            { "node": "Merge Source Instance", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "Filter Our Archived Items": {
+        "main": [
+          [
+            {
+              "node": "Set Workflow Display Name (Dynamic)",
+              "type": "main",
+              "index": 0
+            },
+            { "node": "Select Matching Workflows", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "Select Matching Workflows": {
+        "main": [
+          [{ "node": "Get Workflow JSON(s)1", "type": "main", "index": 0 }]
+        ]
+      },
+      "Filter Our Archived Items1": {
+        "main": [
+          [
+            {
+              "node": "Set Workflow Display Name (Static)",
+              "type": "main",
+              "index": 0
+            },
+            { "node": "Select Matching Workflows1", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "Select Matching Workflows1": {
+        "main": [
+          [{ "node": "Get Workflow JSON(s)", "type": "main", "index": 0 }]
+        ]
+      },
+      "Aggregate Workflows (Static)": {
+        "main": [[{ "node": "Results (Static)", "type": "main", "index": 0 }]]
+      },
+      "Create JSON Workflow Options": {
+        "main": [[{ "node": "Select Workflows", "type": "main", "index": 0 }]]
+      },
+      "Aggregate Workflows (Dynamic)": {
+        "main": [[{ "node": "Results (Dynamic)", "type": "main", "index": 0 }]]
+      },
+      "Create JSON Workflow Options1": {
+        "main": [[{ "node": "Select Workflows1", "type": "main", "index": 0 }]]
+      },
+      "Create JSON Workflow Options2": {
+        "main": [[{ "node": "Select Workflows2", "type": "main", "index": 0 }]]
+      },
+      "Strip Incompatible API Fields": {
+        "main": [[{ "node": "Create Workflow(s)", "type": "main", "index": 0 }]]
+      },
+      "Strip Incompatible API Fields1": {
+        "main": [
+          [{ "node": "Create Workflow(s)1", "type": "main", "index": 0 }]
+        ]
+      },
+      "Get All Source Instance Workflows": {
+        "main": [
+          [{ "node": "Filter Our Archived Items1", "type": "main", "index": 0 }]
+        ]
+      },
+      "Set Workflow Display Name (Static)": {
+        "main": [
+          [
+            {
+              "node": "Aggregate Workflow Options (Static)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aggregate Workflow Options (Static)": {
+        "main": [
+          [
+            {
+              "node": "Create JSON Workflow Options1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Workflow Display Name (Dynamic)": {
+        "main": [
+          [{ "node": "Aggregate Workflows", "type": "main", "index": 0 }]
+        ]
+      },
+      "Aggregate Workflow Options (Dynamic)": {
+        "main": [
+          [
+            {
+              "node": "Create JSON Workflow Options2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Source Workflows With Pagination": {
+        "main": [[{ "node": "Split Out", "type": "main", "index": 0 }]]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "binaryMode": "separate",
+      "availableInMCP": false
+    },
+    "staticData": null,
+    "meta": { "templateCredsSetupCompleted": true },
+    "pinData": {
+      "On form submission": [
+        {
+          "json": {
+            "formMode": "production",
+            "submittedAt": "2026-02-16T09:19:37.843-05:00",
+            "Choose A Mode": "Dynamic"
+          }
+        }
+      ]
+    },
+    "versionId": "29a3691e-6ce6-463c-893a-eef62d290f30",
+    "activeVersionId": null,
+    "versionCounter": 4,
+    "triggerCount": 0,
+    "tags": [],
+    "shared": [
+      {
+        "updatedAt": "2026-03-05T04:04:18.840Z",
+        "createdAt": "2026-03-05T04:04:18.840Z",
+        "role": "workflow:owner",
+        "workflowId": "UG5vdaPr2NAgc6kb",
+        "projectId": "DTJTg8hhkcscVupp",
+        "project": {
+          "updatedAt": "2026-03-05T03:36:28.642Z",
+          "createdAt": "2026-03-05T03:35:34.496Z",
+          "id": "DTJTg8hhkcscVupp",
+          "name": "NGUYEN QUY <hoangquy2620@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "creatorId": "6432e1ca-39aa-49ed-9b01-6aeb2dbe5f50"
+        }
+      }
+    ],
+    "versionMetadata": { "name": null, "description": null }
+  },
+  {
+    "updatedAt": "2026-03-05T04:12:16.558Z",
+    "createdAt": "2026-03-05T04:12:16.558Z",
+    "id": "v2YFF2Er1ZrOCbQj",
+    "name": "backup-v2",
+    "description": null,
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "operation": "toJson",
+          "mode": "each",
+          "binaryPropertyName": "=data",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.convertToFile",
+        "typeVersion": 1.1,
+        "position": [448, 688],
+        "id": "82ba3e5b-c09a-403b-8533-b8369377ecf3",
+        "name": "Convert to File"
+      },
+      {
+        "parameters": { "rule": { "interval": [{}] } },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [-1600, 832],
+        "id": "b807cebd-f1ec-4ff3-95b8-13ae9728d620",
+        "name": "Schedule Trigger"
+      },
+      {
+        "parameters": {
+          "name": "={{ $('Loop Over Items').item.json.name }}.json",
+          "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $('CreateFolderWorkflows').first().json.id }}",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [672, 688],
+        "id": "a20ccb24-8d91-44cc-81e8-e1f94c42764f",
+        "name": "UploadDrive",
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "vc8mnCvZSj0TSAmn",
+            "name": "Google Drive account 2"
+          }
+        }
+      },
+      {
+        "parameters": { "batchSize": 20, "options": {} },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [192, 688],
+        "id": "1ec79f44-9169-4c08-8154-ebaaa075fdf8",
+        "name": "Loop Over Items"
+      },
+      {
+        "parameters": {
+          "content": "## Backup toàn bộ workflow, credentials vào 1 file json all-{date}.json\n- Thuận tiện cho việc chuyển toàn bộ từ n8n này sang n8n khác",
+          "height": 240,
+          "width": 1640
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [-816, 880],
+        "typeVersion": 1,
+        "id": "aea29c60-8ba4-43e9-9dca-e83e564bd816",
+        "name": "Sticky Note"
+      },
+      {
+        "parameters": {
+          "content": "## Backup riêng lẻ từng workflow\n- Tạo thành từng file workflow riêng lẻ và lưu trong trong thư mục workflows",
+          "height": 260,
+          "width": 1640
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [-816, 608],
+        "typeVersion": 1,
+        "id": "f7b13423-9f81-4e8b-b20c-8d4e66396ed7",
+        "name": "Sticky Note1"
+      },
+      {
+        "parameters": {
+          "content": "## Backup all credentials\n- Tạo thành 1 file credentials-{date}.json",
+          "height": 240,
+          "width": 1640
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [-816, 1152],
+        "typeVersion": 1,
+        "id": "95c47d1e-ce0e-4564-b7c7-1441886b5df9",
+        "name": "Sticky Note2"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-backup-credentials.backupCredential",
+        "typeVersion": 1,
+        "position": [-768, 960],
+        "id": "0a78d193-59c0-4463-88f9-616c8409c4cf",
+        "name": "Backup Credential"
+      },
+      {
+        "parameters": {
+          "operation": "completion",
+          "completionTitle": "Tải lên thành công !",
+          "completionMessage": "=Bạn đã tải lên file import thành công, hệ thống sẽ tự động import và thông báo sau khi hoàn thành ! ",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.form",
+        "typeVersion": 1,
+        "position": [-1520, 1584],
+        "id": "d7bdc46b-12f3-40a3-91a7-c912ce6fdb30",
+        "name": "Form",
+        "webhookId": "760e50fa-5487-4747-ad40-f3678161a358"
+      },
+      {
+        "parameters": {
+          "operation": "fromJson",
+          "binaryPropertyName": "File___json",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1,
+        "position": [-1056, 1584],
+        "id": "eababa1d-b8be-4dfc-901a-6f87caf1e36c",
+        "name": "Extract from File"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "64147178-2b4f-4d0c-8d7a-aa4517d80c23",
+                "leftValue": "={{ $('data').first().json['Ghi đè'] }}",
+                "rightValue": "Không",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals",
+                  "name": "filter.operator.equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [-608, 1920],
+        "id": "ead0c109-b6d2-4f1b-93e1-3286b26f53ad",
+        "name": "If2"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $('type').first().json.type }}",
+                      "rightValue": "workflow",
+                      "operator": { "type": "string", "operation": "equals" },
+                      "id": "20f18328-de46-42bd-ad12-0daf34ec844c"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "Workflows"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "id": "ddb3a508-40fe-4f0d-9aa8-b2b9355e3cd5",
+                      "leftValue": "={{ $('type').first().json.type }}",
+                      "rightValue": "credential",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals",
+                        "name": "filter.operator.equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "Credentials"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [112, 1920],
+        "id": "bd9551ce-a45e-4abe-bcc5-1e369d58cfdb",
+        "name": "Switch"
+      },
+      {
+        "parameters": { "operation": "restoreCredentials" },
+        "type": "n8n-nodes-backup-credentials.backupCredential",
+        "typeVersion": 1,
+        "position": [400, 2000],
+        "id": "f404481e-b2d9-47c2-912c-e0d1072fc0ed",
+        "name": "Restore Credentials"
+      },
+      {
+        "parameters": { "operation": "restoreWorkflows" },
+        "type": "n8n-nodes-backup-credentials.backupCredential",
+        "typeVersion": 1,
+        "position": [400, 1840],
+        "id": "dfb2b117-1596-4584-b256-2c7a1e387571",
+        "name": "Restore Workflows"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.1,
+        "position": [656, 1920],
+        "id": "74db9ac7-75b4-4f7c-b6b5-b27aa135a6c5",
+        "name": "Merge"
+      },
+      {
+        "parameters": { "fieldToSplitOut": "data", "options": {} },
+        "type": "n8n-nodes-base.splitOut",
+        "typeVersion": 1,
+        "position": [-832, 1920],
+        "id": "ccad2560-f56a-4e98-95b9-e0e7aa090676",
+        "name": "Split Out"
+      },
+      {
+        "parameters": { "operation": "toJson", "options": { "format": true } },
+        "type": "n8n-nodes-base.convertToFile",
+        "typeVersion": 1.1,
+        "position": [-160, 1920],
+        "id": "07f6ea73-ea42-4abe-bc2a-4de9e472964c",
+        "name": "Convert to File3"
+      },
+      {
+        "parameters": {
+          "formTitle": "Khôi phục Workflows, Credentials ",
+          "formDescription": "Form hỗ trợ import Workflows, Credentials từ file export.\n\nGhi chú:\n- Hỗ trợ import nhiều file cùng lúc\n- Chọn Ghi đè thì hệ thống sẽ ghi đè Workflows, Credentials có cùng ID\n- Nếu chọn \"không\" hệ thống sẽ import thành Workflows, Credentials mới",
+          "formFields": {
+            "values": [
+              {
+                "fieldLabel": "File *.json",
+                "fieldType": "file",
+                "acceptFileTypes": ".json",
+                "requiredField": true
+              },
+              {
+                "fieldLabel": "Ghi đè",
+                "fieldType": "dropdown",
+                "fieldOptions": {
+                  "values": [{ "option": "Có" }, { "option": "Không" }]
+                },
+                "requiredField": true
+              }
+            ]
+          },
+          "options": {
+            "appendAttribution": false,
+            "customCss": ":root {\n\t--font-family: 'Open Sans', sans-serif;\n\t--font-weight-normal: 400;\n\t--font-weight-bold: 600;\n\t--font-size-body: 12px;\n\t--font-size-label: 14px;\n\t--font-size-test-notice: 12px;\n\t--font-size-input: 14px;\n\t--font-size-header: 20px;\n\t--font-size-paragraph: 14px;\n\t--font-size-link: 12px;\n\t--font-size-error: 12px;\n\t--font-size-html-h1: 28px;\n\t--font-size-html-h2: 20px;\n\t--font-size-html-h3: 16px;\n\t--font-size-html-h4: 14px;\n\t--font-size-html-h5: 12px;\n\t--font-size-html-h6: 10px;\n\t--font-size-subheader: 14px;\n\n\t/* Colors */\n\t--color-background: #fbfcfe;\n\t--color-test-notice-text: #e6a23d;\n\t--color-test-notice-bg: #fefaf6;\n\t--color-test-notice-border: #f6dcb7;\n\t--color-card-bg: #ffffff;\n\t--color-card-border: #dbdfe7;\n\t--color-card-shadow: rgba(99, 77, 255, 0.06);\n\t--color-link: #7e8186;\n\t--color-header: #525356;\n\t--color-label: #555555;\n\t--color-input-border: #dbdfe7;\n\t--color-input-text: #71747A;\n\t--color-focus-border: rgb(90, 76, 194);\n\t--color-submit-btn-bg: #ff6d5a;\n\t--color-submit-btn-text: #ffffff;\n\t--color-error: #ea1f30;\n\t--color-required: #ff6d5a;\n\t--color-clear-button-bg: #7e8186;\n\t--color-html-text: #555;\n\t--color-html-link: #ff6d5a;\n\t--color-header-subtext: #7e8186;\n\n\t/* Border Radii */\n\t--border-radius-card: 8px;\n\t--border-radius-input: 6px;\n\t--border-radius-clear-btn: 50%;\n\t--card-border-radius: 8px;\n\n\t/* Spacing */\n\t--padding-container-top: 24px;\n\t--padding-card: 24px;\n\t--padding-test-notice-vertical: 12px;\n\t--padding-test-notice-horizontal: 24px;\n\t--margin-bottom-card: 16px;\n\t--padding-form-input: 12px;\n\t--card-padding: 24px;\n\t--card-margin-bottom: 16px;\n\n\t/* Dimensions */\n\t--container-width: 448px;\n\t--submit-btn-height: 48px;\n\t--checkbox-size: 18px;\n\n\t/* Others */\n\t--box-shadow-card: 0px 4px 16px 0px var(--color-card-shadow);\n\t--opacity-placeholder: 0.5;\n}\n\n.form-header p {\n  text-align: left;\n}"
+          }
+        },
+        "type": "n8n-nodes-base.formTrigger",
+        "typeVersion": 2.2,
+        "position": [-1760, 1584],
+        "id": "f8eb7f1e-ff2b-4f5f-89fe-01775d635a2c",
+        "name": "Form import Workflows/Credentials",
+        "webhookId": "114c7304-09a8-4036-b3bd-dc3239b15576"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "65ee94cd-022d-4f66-8aba-80e9a1aec190",
+                "name": "type",
+                "value": "={{ $json.data[0].nodes ? 'workflow' : 'credential' }}",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [-1072, 1920],
+        "id": "b4fa1c78-8327-4c85-b773-2af24e62f969",
+        "name": "type"
+      },
+      {
+        "parameters": { "includeOtherFields": true, "options": {} },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [-1296, 1584],
+        "id": "fc2fe997-d81b-4a4f-b566-2bc7e68f5ab0",
+        "name": "data"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "519634ba-80c6-4593-99ac-1b6551f1695d",
+                "name": "id",
+                "value": "={{ $json.id.split('')\n    .sort(() => Math.random() - 0.5)\n    .join('') }}",
+                "type": "string"
+              },
+              {
+                "id": "4b20db54-4b05-4753-9647-866b6708a795",
+                "name": "name",
+                "value": "={{ $json.name }} - {{ $json.id.split('')\n    .sort(() => Math.random() - 0.5)\n    .join('') }}",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": { "stripBinary": true }
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [-368, 1840],
+        "id": "7f1202b6-148d-4f53-b119-841c40d4dc65",
+        "name": "Edit Fields",
+        "notesInFlow": true,
+        "notes": "Thay đổi thông tin name và id cũ để không ghi đè"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "b6105bc7-a38d-47a9-9321-258abe01d2db",
+                "name": "data",
+                "value": "={{ Array.isArray($json.data) ? $json.data : [$json.data] }}",
+                "type": "array"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [-1296, 1920],
+        "id": "599c028c-4965-4900-bbef-c6ecf9099906",
+        "name": "Edit Fields1"
+      },
+      {
+        "parameters": {
+          "operation": "fromJson",
+          "destinationKey": "wf",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1,
+        "position": [-320, 688],
+        "id": "322a805d-a55c-44da-aecb-da40ae9b50c4",
+        "name": "Extract from File1"
+      },
+      {
+        "parameters": { "fieldToSplitOut": "wf", "options": {} },
+        "type": "n8n-nodes-base.splitOut",
+        "typeVersion": 1,
+        "position": [-80, 688],
+        "id": "76dc4c52-94d8-47d3-9af9-a19edf08ed67",
+        "name": "Split Out2"
+      },
+      {
+        "parameters": { "operation": "backupWorkflows" },
+        "type": "n8n-nodes-backup-credentials.backupCredential",
+        "typeVersion": 1,
+        "position": [-528, 688],
+        "id": "25b16212-5e20-4206-bb24-402bfb20cee5",
+        "name": "Backup Workflows"
+      },
+      {
+        "parameters": { "options": {} },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [-1520, 1920],
+        "id": "ef0b0abd-bec1-4faa-9227-deffeab5f2cb",
+        "name": "Loop Over Items1"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [-368, 2000],
+        "id": "d755bfd2-4c2f-4afd-95dc-b5ff497a7230",
+        "name": "next"
+      },
+      {
+        "parameters": {
+          "operation": "fromJson",
+          "destinationKey": "cr",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1,
+        "position": [-528, 960],
+        "id": "cd5938f2-1e2a-4064-a972-622cd71c062c",
+        "name": "Extract from File2"
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.1,
+        "position": [-80, 944],
+        "id": "5df6f0a8-1470-4653-8844-235f3842ad48",
+        "name": "Merge1"
+      },
+      {
+        "parameters": {
+          "operation": "toJson",
+          "mode": "each",
+          "binaryPropertyName": "=data",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.convertToFile",
+        "typeVersion": 1.1,
+        "position": [192, 944],
+        "id": "3c2380db-809b-4a3c-bc96-dd84861ee4a5",
+        "name": "Convert to File1"
+      },
+      {
+        "parameters": {
+          "jsCode": "\nreturn [{data: $input.first().json.data.wf},{data: $input.first().json.data.cr}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [-592, 1504],
+        "id": "82f46d29-0fef-4e2f-9162-5bf997fb6d1f",
+        "name": "Code2"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.1,
+        "position": [-400, 1584],
+        "id": "fbe3e41a-2ee4-4bf8-91be-e8f61bc441a3",
+        "name": "Merge3"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "a6dcf2e7-c52b-4069-b27c-f8b7312c47bc",
+                "leftValue": "={{ $json.data.wf }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [-832, 1584],
+        "id": "b524f1a1-fe50-4781-876f-c6d9b20fe703",
+        "name": "If"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [-176, 1584],
+        "id": "f1c6f2e3-70ba-4780-992d-8c0028e0f44e",
+        "name": "continue"
+      },
+      {
+        "parameters": {
+          "name": "=all-{{ $('config').first().json.date }}.json",
+          "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $('NewFolderBackup').first().json.id }}",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [448, 944],
+        "id": "0da31996-45c3-4a2f-85aa-895453725dbc",
+        "name": "Upload File Backup All",
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "vc8mnCvZSj0TSAmn",
+            "name": "Google Drive account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "content": "## Backup all workflows\n- Tạo thành 1 file workflows-{date}.json",
+          "height": 240,
+          "width": 1640
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [-816, 352],
+        "typeVersion": 1,
+        "id": "40ebd682-05ce-4b6f-923b-5cf7fe4afb73",
+        "name": "Sticky Note3"
+      },
+      {
+        "parameters": {
+          "name": "=workflows-{{ $('config').first().json.date }}.json",
+          "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $('NewFolderBackup').first().json.id }}",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [-320, 400],
+        "id": "e6a546d5-ea1d-4e32-ae83-1bd3d5ad600d",
+        "name": "Upload File Backup Workflows",
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "vc8mnCvZSj0TSAmn",
+            "name": "Google Drive account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "name": "=credentials-{{ $('config').first().json.date }}.json",
+          "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $('NewFolderBackup').first().json.id }}",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [-528, 1232],
+        "id": "d8905680-908f-4345-9401-014f769b85a1",
+        "name": "Upload File Backup Credentials",
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "vc8mnCvZSj0TSAmn",
+            "name": "Google Drive account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "9436aeb5-dd5b-4dc3-bfec-80ca015657bb",
+                "name": "date",
+                "value": "={{ $now.format('yyyy-MM-dd-HH-mm') }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [-1376, 832],
+        "id": "a198325b-f555-4e5e-af89-66618fb29ce1",
+        "name": "config"
+      },
+      {
+        "parameters": {
+          "resource": "folder",
+          "name": "workflows",
+          "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $('NewFolderBackup').first().json.id }}",
+            "mode": "id"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [-768, 688],
+        "id": "57d3bb60-dc71-4450-96a0-1e5ed5f9b917",
+        "name": "CreateFolderWorkflows",
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "vc8mnCvZSj0TSAmn",
+            "name": "Google Drive account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "folder",
+          "name": "={{ $('config').first().json.date }}",
+          "driveId": { "__rl": true, "mode": "list", "value": "My Drive" },
+          "folderId": {
+            "__rl": true,
+            "value": "https://drive.google.com/drive/folders/1mJFDvlQUeE_0_zO7R6ESwb_5HaJNteEQ",
+            "mode": "url"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleDrive",
+        "typeVersion": 3,
+        "position": [-1136, 832],
+        "id": "cecf9883-5ddb-49f0-a6ed-47cec5fc0c8b",
+        "name": "NewFolderBackup",
+        "credentials": {
+          "googleDriveOAuth2Api": {
+            "id": "vc8mnCvZSj0TSAmn",
+            "name": "Google Drive account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "content": "# Restore backup\n- Restore previously backed-up credentials from a file.\n- Khôi phục các thông tin đăng nhập đã sao lưu trước đó từ tệp tin.",
+          "height": 700,
+          "width": 2660,
+          "color": 4
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [-1792, 1472],
+        "typeVersion": 1,
+        "id": "1f021dfe-e19a-4bf6-b418-009e4fe86434",
+        "name": "Sticky Note4"
+      },
+      {
+        "parameters": {
+          "content": "# Backup workflow\n- Create a backup of all existing workflows/credentials and upload it to your Drive.\n- Tạo bản sao lưu của tất cả workflow/credential hiện có và tải lên Drive của bạn.",
+          "height": 1160,
+          "width": 2660,
+          "color": 5
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [-1792, 240],
+        "typeVersion": 1,
+        "id": "981c8dd2-46f6-4ea8-a255-9b635b14f739",
+        "name": "Sticky Note5"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [-592, 1648],
+        "id": "f3a708e3-8b67-43b4-8471-0bbd4684d696",
+        "name": "next1"
+      }
+    ],
+    "connections": {
+      "Convert to File": {
+        "main": [[{ "node": "UploadDrive", "type": "main", "index": 0 }]]
+      },
+      "Schedule Trigger": {
+        "main": [[{ "node": "config", "type": "main", "index": 0 }]]
+      },
+      "UploadDrive": {
+        "main": [[{ "node": "Loop Over Items", "type": "main", "index": 0 }]]
+      },
+      "Loop Over Items": {
+        "main": [
+          [],
+          [{ "node": "Convert to File", "type": "main", "index": 0 }]
+        ]
+      },
+      "Backup Credential": {
+        "main": [
+          [
+            { "node": "Extract from File2", "type": "main", "index": 0 },
+            {
+              "node": "Upload File Backup Credentials",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Form": { "main": [[{ "node": "data", "type": "main", "index": 0 }]] },
+      "Extract from File": {
+        "main": [[{ "node": "If", "type": "main", "index": 0 }]]
+      },
+      "If2": {
+        "main": [
+          [{ "node": "Edit Fields", "type": "main", "index": 0 }],
+          [{ "node": "next", "type": "main", "index": 0 }]
+        ]
+      },
+      "Switch": {
+        "main": [
+          [{ "node": "Restore Workflows", "type": "main", "index": 0 }],
+          [{ "node": "Restore Credentials", "type": "main", "index": 0 }]
+        ]
+      },
+      "Restore Credentials": {
+        "main": [[{ "node": "Merge", "type": "main", "index": 1 }]]
+      },
+      "Restore Workflows": {
+        "main": [[{ "node": "Merge", "type": "main", "index": 0 }]]
+      },
+      "Merge": {
+        "main": [[{ "node": "Loop Over Items1", "type": "main", "index": 0 }]]
+      },
+      "Split Out": {
+        "main": [[{ "node": "If2", "type": "main", "index": 0 }]]
+      },
+      "Convert to File3": {
+        "main": [[{ "node": "Switch", "type": "main", "index": 0 }]]
+      },
+      "Form import Workflows/Credentials": {
+        "main": [[{ "node": "Form", "type": "main", "index": 0 }]]
+      },
+      "type": {
+        "main": [[{ "node": "Split Out", "type": "main", "index": 0 }]]
+      },
+      "data": {
+        "main": [[{ "node": "Extract from File", "type": "main", "index": 0 }]]
+      },
+      "Edit Fields": {
+        "main": [[{ "node": "Convert to File3", "type": "main", "index": 0 }]]
+      },
+      "Edit Fields1": {
+        "main": [[{ "node": "type", "type": "main", "index": 0 }]]
+      },
+      "Extract from File1": {
+        "main": [
+          [
+            { "node": "Merge1", "type": "main", "index": 0 },
+            { "node": "Split Out2", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "Split Out2": {
+        "main": [[{ "node": "Loop Over Items", "type": "main", "index": 0 }]]
+      },
+      "Backup Workflows": {
+        "main": [
+          [
+            { "node": "Extract from File1", "type": "main", "index": 0 },
+            {
+              "node": "Upload File Backup Workflows",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items1": {
+        "main": [[], [{ "node": "Edit Fields1", "type": "main", "index": 0 }]]
+      },
+      "next": {
+        "main": [[{ "node": "Convert to File3", "type": "main", "index": 0 }]]
+      },
+      "Extract from File2": {
+        "main": [[{ "node": "Merge1", "type": "main", "index": 1 }]]
+      },
+      "Merge1": {
+        "main": [[{ "node": "Convert to File1", "type": "main", "index": 0 }]]
+      },
+      "Convert to File1": {
+        "main": [
+          [{ "node": "Upload File Backup All", "type": "main", "index": 0 }]
+        ]
+      },
+      "Code2": { "main": [[{ "node": "Merge3", "type": "main", "index": 0 }]] },
+      "Merge3": {
+        "main": [[{ "node": "continue", "type": "main", "index": 0 }]]
+      },
+      "If": {
+        "main": [
+          [{ "node": "Code2", "type": "main", "index": 0 }],
+          [{ "node": "next1", "type": "main", "index": 0 }]
+        ]
+      },
+      "continue": {
+        "main": [[{ "node": "Loop Over Items1", "type": "main", "index": 0 }]]
+      },
+      "config": {
+        "main": [[{ "node": "NewFolderBackup", "type": "main", "index": 0 }]]
+      },
+      "CreateFolderWorkflows": {
+        "main": [[{ "node": "Backup Workflows", "type": "main", "index": 0 }]]
+      },
+      "NewFolderBackup": {
+        "main": [
+          [
+            { "node": "Backup Credential", "type": "main", "index": 0 },
+            { "node": "CreateFolderWorkflows", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "next1": { "main": [[{ "node": "Merge3", "type": "main", "index": 1 }]] }
+    },
+    "settings": { "executionOrder": "v1" },
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "f03dd7d9c390c21f2f6c1fcef602cbb70a6d3f88b1e7722773b012d0c9a14265"
+    },
+    "pinData": {},
+    "versionId": "dee7ffd4-b599-4f9a-9fd3-bdd044b4732c",
+    "activeVersionId": null,
+    "versionCounter": 1,
+    "triggerCount": 0,
+    "tags": [],
+    "shared": [
+      {
+        "updatedAt": "2026-03-05T04:12:16.558Z",
+        "createdAt": "2026-03-05T04:12:16.558Z",
+        "role": "workflow:owner",
+        "workflowId": "v2YFF2Er1ZrOCbQj",
+        "projectId": "DTJTg8hhkcscVupp",
+        "project": {
+          "updatedAt": "2026-03-05T03:36:28.642Z",
+          "createdAt": "2026-03-05T03:35:34.496Z",
+          "id": "DTJTg8hhkcscVupp",
+          "name": "NGUYEN QUY <hoangquy2620@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "creatorId": "6432e1ca-39aa-49ed-9b01-6aeb2dbe5f50"
+        }
+      }
+    ],
+    "versionMetadata": { "name": null, "description": null }
+  }
+]
