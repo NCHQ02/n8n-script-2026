@@ -59,5 +59,7 @@ for src in "${SOURCES[@]}"; do
   echo "" >> "$OUT"
 done
 
+# Strip CRLF to ensure compatibility with Linux VPS
+sed -i 's/\r$//' "${OUT}"
 chmod +x "$OUT"
 echo "[+] Built: ${OUT} ($(wc -l < "$OUT") lines)"
