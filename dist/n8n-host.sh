@@ -17,6 +17,8 @@ N8N_DIR="/n8n-cloud"                                        # Thư mục cài đ
 ENV_FILE="${N8N_DIR}/.env"                                  # File biến môi trường
 DOCKER_COMPOSE_FILE="${N8N_DIR}/docker-compose.yml"         # File Docker Compose
 DOCKER_COMPOSE_CMD="docker compose"                         # Lệnh docker compose (sẽ tự cập nhật)
+PROXY_SETUP_TYPE="standard"                                 # Loại proxy: standard (Nginx apt) hoặc npm (Docker)
+NPM_ADMIN_PORT="81"                                         # Cổng admin của NPM
 SPINNER_PID=0                                               # PID của tiến trình spinner
 N8N_CONTAINER_NAME="n8n_app"                                # Tên container N8N
 N8N_SERVICE_NAME="n8n"                                      # Tên service trong docker-compose
@@ -169,10 +171,14 @@ install_prerequisites() {
   if [ $? -ne 0 ]; then return 1; fi
 
   if ! is_package_installed nginx; then
-    run_silent_command "Cài đặt Nginx" "apt-get install -y nginx" "false"
-    if [ $? -ne 0 ]; then return 1; fi
-    sudo systemctl enable nginx >/dev/null 2>&1
-    sudo systemctl start nginx >/dev/null 2>&1
+    if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
+      echo -e "${YELLOW}Bỏ qua cài đặt Nginx (apt) vì bạn sử dụng Nginx Proxy Manager.${NC}"
+    else
+      run_silent_command "Cài đặt Nginx" "apt-get install -y nginx" "false"
+      if [ $? -ne 0 ]; then return 1; fi
+      sudo systemctl enable nginx >/dev/null 2>&1
+      sudo systemctl start nginx >/dev/null 2>&1
+    fi
   fi
 
   if ! command_exists docker; then
@@ -204,8 +210,12 @@ install_prerequisites() {
   fi
 
   if ! command_exists certbot; then
-    run_silent_command "Cài đặt Certbot và plugin Nginx" "apt-get install -y certbot python3-certbot-nginx" "false"
-    if [ $? -ne 0 ]; then return 1; fi
+    if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
+      echo -e "${YELLOW}Bỏ qua cài đặt Certbot vì Nginx Proxy Manager sẽ tự quản lý SSL.${NC}"
+    else
+      run_silent_command "Cài đặt Certbot và plugin Nginx" "apt-get install -y certbot python3-certbot-nginx" "false"
+      if [ $? -ne 0 ]; then return 1; fi
+    fi
   fi
 
   if ! command_exists dig; then
@@ -344,6 +354,25 @@ get_domain_and_dns_check_reusable() {
   return 0
 }
 
+prompt_proxy_configuration() {
+  local proxy_type="standard"
+  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_PROXY_TYPE" ]]; then
+    proxy_type="$CLI_PROXY_TYPE"
+  elif [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo -e "\n${CYAN}--- Cấu hình Proxy (Nginx) ---${NC}"
+    echo -e "1) Standard Nginx (Nhẹ, quản lý qua CLI/Script - Khuyên dùng)"
+    echo -e "2) Nginx Proxy Manager (Có giao diện Web UI chuyên nghiệp trên cổng 81)"
+    local proxy_choice
+    read -p "Nhập lựa chọn của bạn (1-2) [Mặc định: 1]: " proxy_choice
+    if [[ "$proxy_choice" == "2" ]]; then
+      proxy_type="npm"
+    fi
+  fi
+
+  PROXY_SETUP_TYPE="$proxy_type"
+  update_env_file "PROXY_SETUP_TYPE" "$proxy_type"
+}
+
 prompt_database_configuration() {
   local db_type="local"
   if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_EXTERNAL_DB" ]]; then
@@ -450,6 +479,12 @@ create_docker_compose_config() {
     domain_name_val=$(grep "^DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
     generic_timezone_val=$(grep "^GENERIC_TIMEZONE=" "${ENV_FILE}" | cut -d'=' -f2)
     db_setup_type_val=$(grep "^DB_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
+    proxy_setup_type_val=$(grep "^PROXY_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
+  fi
+
+  # Cập nhật biến toàn cục từ file env nếu có thể
+  if [[ -n "$proxy_setup_type_val" ]]; then
+    PROXY_SETUP_TYPE="$proxy_setup_type_val"
   fi
 
   local n8n_db_host="postgres"
@@ -465,6 +500,35 @@ create_docker_compose_config() {
   local volumes_postgres=""
   local volumes_redis=""
   local n8n_depends_on=""
+
+  local services_npm=""
+  if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
+services_npm="
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: always
+    container_name: n8n_npm
+    ports:
+      - '80:80'
+      - '81:81'
+      - '443:443'
+    volumes:
+      - ./npm_data:/data
+      - ./npm_letsencrypt:/etc/letsencrypt
+    healthcheck:
+      test: [\"CMD\", \"/usr/bin/check-health\"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - n8n_network
+    logging:
+      driver: \"json-file\"
+      options:
+        max-size: \"10m\"
+        max-file: \"3\"
+"
+  fi
 
   if [[ "$db_setup_type_val" != "external" ]]; then
 services_postgres="
@@ -483,6 +547,8 @@ services_postgres="
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - n8n_network
     logging:
       driver: \"json-file\"
       options:
@@ -504,6 +570,8 @@ services_redis="
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - n8n_network
     logging:
       driver: \"json-file\"
       options:
@@ -523,7 +591,7 @@ n8n_depends_on="
   sudo bash -c "cat > ${DOCKER_COMPOSE_FILE}" <<EOF
 # version: '3.8'
 
-services:${services_postgres}${services_redis}
+services:${services_postgres}${services_redis}${services_npm}
   ${N8N_SERVICE_NAME}:
     image: n8nio/n8n:latest
     restart: always
@@ -549,6 +617,8 @@ services:${services_postgres}${services_redis}
       - N8N_RUNNERS_ENABLED=true
     volumes:
       - n8n_data:/home/node/.n8n${n8n_depends_on}
+    networks:
+      - n8n_network
     logging:
       driver: "json-file"
       options:
@@ -559,6 +629,10 @@ volumes:
 ${volumes_postgres}
 ${volumes_redis}
   n8n_data:
+
+networks:
+  n8n_network:
+    driver: bridge
 EOF
   stop_spinner
 }
@@ -598,6 +672,13 @@ start_docker_containers() {
 }
 
 configure_nginx_and_ssl() {
+  if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
+    stop_spinner
+    echo -e "${GREEN}Bỏ qua cấu hình Nginx/SSL cũ vì bạn sử dụng Nginx Proxy Manager.${NC}"
+    echo -e "${YELLOW}Sau khi cài đặt xong, hãy truy cập cổng 81 để cấu hình Proxy.${NC}"
+    return 0
+  fi
+
   start_spinner "Cấu hình Nginx và SSL với Certbot..."
   local domain_name
   local user_email
@@ -811,6 +892,17 @@ final_checks_and_message() {
     return 1
   fi
 
+  if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
+    local server_ip
+    server_ip=$(get_public_ip)
+    echo -e "\n${CYAN}--- THÔNG TIN NGINX PROXY MANAGER ---${NC}"
+    echo -e "Địa chỉ quản trị: ${GREEN}http://${server_ip}:81${NC}"
+    echo -e "Tài khoản mặc định:"
+    echo -e "  Email:    ${YELLOW}admin@example.com${NC}"
+    echo -e "  Password: ${YELLOW}changeme${NC}"
+    echo -e "\n${YELLOW}Lưu ý: Trong NPM, khi trỏ vào n8n, hãy dùng hostname là '${NC}${CYAN}${N8N_CONTAINER_NAME}${NC}${YELLOW}' và cổng '${NC}${CYAN}5678${NC}${YELLOW}'.${NC}"
+  fi
+
   echo -e "${YELLOW}Quan trọng: Hãy lưu trữ file ${ENV_FILE} ở một nơi an toàn!${NC}"
   echo -e "Bạn nên tạo user đầu tiên cho n8n ngay sau khi truy cập."
 }
@@ -843,6 +935,7 @@ install() {
 
   trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình cài đặt (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
 
+  prompt_proxy_configuration
   install_prerequisites
   setup_directories_and_env_file
 
@@ -926,10 +1019,14 @@ reinstall_n8n() {
         elif [[ "$confirmation" != "delete" ]]; then
             echo -e "\n${RED}Xác nhận không hợp lệ. Huỷ bỏ thao tác.${NC}"
             echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-            read -r
-            return 0
-        fi
-    fi
+    healthcheck:
+      test: ["CMD", "/usr/bin/check-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - n8n_network
+    logging:
 
     echo -e "\n${CYAN}Bắt đầu quá trình xóa N8N...${NC}"
     trap 'stop_spinner; echo -e "\n${RED}Đã xảy ra lỗi hoặc huỷ bỏ trong quá trình xóa N8N.${NC}"; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM

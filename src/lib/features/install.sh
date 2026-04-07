@@ -25,6 +25,7 @@ install() {
 
   trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình cài đặt (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
 
+  prompt_proxy_configuration
   install_prerequisites
   setup_directories_and_env_file
 
@@ -108,10 +109,14 @@ reinstall_n8n() {
         elif [[ "$confirmation" != "delete" ]]; then
             echo -e "\n${RED}Xác nhận không hợp lệ. Huỷ bỏ thao tác.${NC}"
             echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-            read -r
-            return 0
-        fi
-    fi
+    healthcheck:
+      test: ["CMD", "/usr/bin/check-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - n8n_network
+    logging:
 
     echo -e "\n${CYAN}Bắt đầu quá trình xóa N8N...${NC}"
     trap 'stop_spinner; echo -e "\n${RED}Đã xảy ra lỗi hoặc huỷ bỏ trong quá trình xóa N8N.${NC}"; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
