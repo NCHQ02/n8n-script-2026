@@ -3035,6 +3035,14 @@ setup_n8n_library() {
   # Tạo lại file docker-compose.yml
   create_docker_compose_config
   
+  # Tạo Schema n8n_library trong Postgres nếu chưa có
+  local pg_user pg_db
+  pg_user=$(grep "^DB_POSTGRESDB_USER=" "${ENV_FILE}" | cut -d'=' -f2)
+  pg_db=$(grep "^DB_POSTGRESDB_DATABASE=" "${ENV_FILE}" | cut -d'=' -f2)
+  
+  start_spinner "Đang khởi tạo cơ sở dữ liệu cho Library..."
+  sudo docker exec -t n8n_postgres psql -U "${pg_user}" -d "${pg_db}" -c "CREATE SCHEMA IF NOT EXISTS n8n_library;" > /dev/null 2>&1
+  
   # Khởi chạy lại container
   cd "${N8N_DIR}" || return 1
   sudo $DOCKER_COMPOSE_CMD up -d --remove-orphans
