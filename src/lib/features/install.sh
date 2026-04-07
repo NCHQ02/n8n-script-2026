@@ -67,6 +67,15 @@ install() {
   configure_nginx_and_ssl
   final_checks_and_message
 
+  # Hỏi xem có muốn cài đặt n8n Library không
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+      echo -e "\n${CYAN}--- Cài đặt bổ sung ---${NC}"
+      read -p "Bạn có muốn cài đặt N8N Library (Thư viện mẫu, Monitoring...) ngay không? (y/n) [Mặc định: n]: " install_lib_choice
+      if [[ "$install_lib_choice" == "y" || "$install_lib_choice" == "Y" ]]; then
+          setup_n8n_library
+      fi
+  fi
+
   trap - ERR SIGINT SIGTERM
 
   echo -e "\n${GREEN}===================================================${NC}"

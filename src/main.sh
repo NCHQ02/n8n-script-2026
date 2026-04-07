@@ -166,8 +166,12 @@ show_menu() {
   printf " %-3s %-35s %-3s %s\n" "18)" "Xem Error Logs N8N (Terminal)" "19)" "Dọn rác máy chủ (Docker Prune)"
   printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "20)" "System & Security Audit" "21)" "Cập nhật N8N Cloud Manager"
 
+  # Nhóm 5: Tiện ích mở rộng
+  echo -e "\n ${YELLOW}[ 5. TIỆN ÍCH MỞ RỘNG ]${NC}"
+  printf " %-3s %-35s\n" "22)" "Quản lý N8N Library (Thư viện mẫu & Dash)"
+
   # Nhóm Nguy hiểm
-  echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
+  echo -e "\n ${RED}[ 6. KHU VỰC NGUY HIỂM ]${NC}"
   printf " %-3s %-35s\n" "99)" "Xóa sạch Dữ liệu N8N và Cài đặt lại"
 
   echo "------------------------------------------------------------------------------------"
@@ -199,6 +203,7 @@ while true; do
     19) docker_prune ;;
     20) system_audit ;;
     21) update_script ;;
+    22) library_menu ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - NCHQ02 mãi iu Bạn!"

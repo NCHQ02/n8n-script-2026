@@ -316,6 +316,9 @@ create_docker_compose_config() {
     generic_timezone_val=$(grep "^GENERIC_TIMEZONE=" "${ENV_FILE}" | cut -d'=' -f2)
     db_setup_type_val=$(grep "^DB_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
     proxy_setup_type_val=$(grep "^PROXY_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
+    enable_n8n_library_val=$(grep "^ENABLE_N8N_LIBRARY=" "${ENV_FILE}" | cut -d'=' -f2)
+    library_domain_name_val=$(grep "^LIBRARY_DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
+    library_session_secret_val=$(grep "^LIBRARY_SESSION_SECRET=" "${ENV_FILE}" | cut -d'=' -f2)
   fi
 
   # Cập nhật biến toàn cục từ file env nếu có thể
@@ -356,6 +359,36 @@ services_npm="
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - n8n_network
+    logging:
+      driver: \"json-file\"
+      options:
+        max-size: \"10m\"
+        max-file: \"3\"
+"
+  fi
+  
+  local services_library=""
+  if [[ "$enable_n8n_library_val" == "true" ]]; then
+services_library="
+  ${N8N_LIBRARY_SERVICE_NAME}:
+    build: ./n8n-library
+    restart: always
+    container_name: ${N8N_LIBRARY_CONTAINER_NAME}
+    environment:
+      - DB_POSTGRESDB_HOST=\${POSTGRES_HOST:-${n8n_db_host}}
+      - DB_POSTGRESDB_PORT=\${POSTGRES_PORT:-${n8n_db_port}}
+      - DB_POSTGRESDB_USER=\${POSTGRES_USER:-${postgres_user_val}}
+      - DB_POSTGRESDB_PASSWORD=\${POSTGRES_PASSWORD:-${postgres_password_val}}
+      - DB_POSTGRESDB_DATABASE=\${POSTGRES_DB:-${postgres_db_val}}
+      - DB_POSTGRESDB_SCHEMA=n8n_library
+      - SESSION_SECRET=\${LIBRARY_SESSION_SECRET:-${library_session_secret_val}}
+      - APP_URL=https://\${LIBRARY_DOMAIN_NAME:-${library_domain_name_val}}
+      - N8N_INTERNAL_URL=http://${N8N_SERVICE_NAME}:5678
+      - NODE_ENV=production
+    depends_on:
+      - ${N8N_SERVICE_NAME}
     networks:
       - n8n_network
     logging:
@@ -427,7 +460,7 @@ n8n_depends_on="
   sudo bash -c "cat > ${DOCKER_COMPOSE_FILE}" <<EOF
 # version: '3.8'
 
-services:${services_postgres}${services_redis}${services_npm}
+services:${services_postgres}${services_redis}${services_npm}${services_library}
   ${N8N_SERVICE_NAME}:
     image: n8nio/n8n:latest
     restart: always

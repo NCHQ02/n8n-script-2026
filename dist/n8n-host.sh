@@ -22,6 +22,8 @@ NPM_ADMIN_PORT="81"                                         # Cổng admin của
 SPINNER_PID=0                                               # PID của tiến trình spinner
 N8N_CONTAINER_NAME="n8n_app"                                # Tên container N8N
 N8N_SERVICE_NAME="n8n"                                      # Tên service trong docker-compose
+N8N_LIBRARY_CONTAINER_NAME="n8n_library"                    # Tên container N8N Library
+N8N_LIBRARY_SERVICE_NAME="n8n_library"                      # Tên service N8N Library trong docker-compose
 NGINX_EXPORT_INCLUDE_DIR="/etc/nginx/n8n_export_includes"   # Thư mục chứa config Nginx tạm
 NGINX_EXPORT_INCLUDE_FILE_BASENAME="n8n_export_location"    # Tên file base cho Nginx include
 TEMPLATE_DIR="/n8n-templates"                               # Thư mục chứa file template trên host
@@ -480,6 +482,9 @@ create_docker_compose_config() {
     generic_timezone_val=$(grep "^GENERIC_TIMEZONE=" "${ENV_FILE}" | cut -d'=' -f2)
     db_setup_type_val=$(grep "^DB_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
     proxy_setup_type_val=$(grep "^PROXY_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
+    enable_n8n_library_val=$(grep "^ENABLE_N8N_LIBRARY=" "${ENV_FILE}" | cut -d'=' -f2)
+    library_domain_name_val=$(grep "^LIBRARY_DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
+    library_session_secret_val=$(grep "^LIBRARY_SESSION_SECRET=" "${ENV_FILE}" | cut -d'=' -f2)
   fi
 
   # Cập nhật biến toàn cục từ file env nếu có thể
@@ -520,6 +525,36 @@ services_npm="
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - n8n_network
+    logging:
+      driver: \"json-file\"
+      options:
+        max-size: \"10m\"
+        max-file: \"3\"
+"
+  fi
+  
+  local services_library=""
+  if [[ "$enable_n8n_library_val" == "true" ]]; then
+services_library="
+  ${N8N_LIBRARY_SERVICE_NAME}:
+    build: ./n8n-library
+    restart: always
+    container_name: ${N8N_LIBRARY_CONTAINER_NAME}
+    environment:
+      - DB_POSTGRESDB_HOST=\${POSTGRES_HOST:-${n8n_db_host}}
+      - DB_POSTGRESDB_PORT=\${POSTGRES_PORT:-${n8n_db_port}}
+      - DB_POSTGRESDB_USER=\${POSTGRES_USER:-${postgres_user_val}}
+      - DB_POSTGRESDB_PASSWORD=\${POSTGRES_PASSWORD:-${postgres_password_val}}
+      - DB_POSTGRESDB_DATABASE=\${POSTGRES_DB:-${postgres_db_val}}
+      - DB_POSTGRESDB_SCHEMA=n8n_library
+      - SESSION_SECRET=\${LIBRARY_SESSION_SECRET:-${library_session_secret_val}}
+      - APP_URL=https://\${LIBRARY_DOMAIN_NAME:-${library_domain_name_val}}
+      - N8N_INTERNAL_URL=http://${N8N_SERVICE_NAME}:5678
+      - NODE_ENV=production
+    depends_on:
+      - ${N8N_SERVICE_NAME}
     networks:
       - n8n_network
     logging:
@@ -591,7 +626,7 @@ n8n_depends_on="
   sudo bash -c "cat > ${DOCKER_COMPOSE_FILE}" <<EOF
 # version: '3.8'
 
-services:${services_postgres}${services_redis}${services_npm}
+services:${services_postgres}${services_redis}${services_npm}${services_library}
   ${N8N_SERVICE_NAME}:
     image: n8nio/n8n:latest
     restart: always
@@ -976,6 +1011,15 @@ install() {
   start_docker_containers
   configure_nginx_and_ssl
   final_checks_and_message
+
+  # Hỏi xem có muốn cài đặt n8n Library không
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+      echo -e "\n${CYAN}--- Cài đặt bổ sung ---${NC}"
+      read -p "Bạn có muốn cài đặt N8N Library (Thư viện mẫu, Monitoring...) ngay không? (y/n) [Mặc định: n]: " install_lib_choice
+      if [[ "$install_lib_choice" == "y" || "$install_lib_choice" == "Y" ]]; then
+          setup_n8n_library
+      fi
+  fi
 
   trap - ERR SIGINT SIGTERM
 
@@ -2929,6 +2973,217 @@ EOF
     fi
 }
 
+# ---- src/lib/features/library.sh ----
+# --- Hàm Quản lý N8N Library ---
+
+library_menu() {
+  while true; do
+    clear
+    echo -e "${CYAN}===================================================${NC}"
+    echo -e "${CYAN}             QUẢN LÝ N8N LIBRARY                  ${NC}"
+    echo -e "${CYAN}===================================================${NC}"
+    echo -e "1) Cài đặt / Cập nhật N8N Library"
+    echo -e "2) Gỡ bỏ N8N Library"
+    echo -e "3) Xem Log N8N Library"
+    echo -e "0) Quay lại menu chính"
+    echo -e "${CYAN}---------------------------------------------------${NC}"
+    read -p "Chọn một chức năng (0-3): " library_choice
+
+    case $library_choice in
+      1) setup_n8n_library ;;
+      2) remove_n8n_library ;;
+      3) view_library_logs ;;
+      0) break ;;
+      *) echo -e "${RED}Lựa chọn không hợp lệ!${NC}"; sleep 1 ;;
+    esac
+  done
+}
+
+setup_n8n_library() {
+  check_root
+  
+  if [ ! -f "${DOCKER_COMPOSE_FILE}" ]; then
+    echo -e "${RED}Lỗi: Bạn cần cài đặt n8n Cloud trước khi cài đặt N8N Library.${NC}"
+    read -p "Nhấn Enter để quay lại..."
+    return 1
+  fi
+
+  echo -e "\n${CYAN}--- Cấu hình N8N Library ---${NC}"
+  
+  local library_domain
+  if ! get_domain_and_dns_check_reusable library_domain "" "Nhập tên miền cho N8N Library (ví dụ: lib.example.com)"; then
+    return 0
+  fi
+
+  start_spinner "Đang tải mã nguồn N8N Library..."
+  if [ ! -d "${N8N_DIR}/n8n-library" ]; then
+    sudo git clone https://github.com/LPilic/n8n-library.git "${N8N_DIR}/n8n-library" > /dev/null 2>&1
+  else
+    cd "${N8N_DIR}/n8n-library" && sudo git pull > /dev/null 2>&1 && cd - > /dev/null
+  fi
+  
+  start_spinner "Đang cấu hình N8N Library..."
+  
+  # Tạo Session Secret nếu chưa có
+  local session_secret
+  session_secret=$(grep "^LIBRARY_SESSION_SECRET=" "${ENV_FILE}" | cut -d'=' -f2)
+  if [[ -z "$session_secret" ]]; then
+    session_secret=$(openssl rand -hex 32)
+  fi
+  
+  # Cập nhật file .env
+  update_env_file "ENABLE_N8N_LIBRARY" "true"
+  update_env_file "LIBRARY_DOMAIN_NAME" "$library_domain"
+  update_env_file "LIBRARY_SESSION_SECRET" "$session_secret"
+  
+  # Tạo lại file docker-compose.yml
+  create_docker_compose_config
+  
+  # Khởi chạy lại container
+  cd "${N8N_DIR}" || return 1
+  sudo $DOCKER_COMPOSE_CMD up -d --remove-orphans
+  cd - > /dev/null
+  
+  # Cấu hình Nginx & SSL cho Library Domain
+  configure_library_nginx_ssl "$library_domain"
+  
+  stop_spinner
+  echo -e "${GREEN}Cài đặt N8N Library hoàn tất!${NC}"
+  echo -e "Truy cập tại: ${GREEN}https://${library_domain}${NC}"
+  read -p "Nhấn Enter để tiếp tục..."
+}
+
+configure_library_nginx_ssl() {
+  local domain="$1"
+  local user_email
+  user_email=$(grep "^LETSENCRYPT_EMAIL=" "${ENV_FILE}" | cut -d'=' -f2)
+  local webroot_path="/var/www/html"
+
+  if [[ "$domain" == "localhost" ]]; then
+    return 0 # Không hỗ trợ SSL cho localhost trong scope này
+  fi
+
+  start_spinner "Cấu hình Nginx và SSL cho ${domain}..."
+  
+  local nginx_conf_file="/etc/nginx/sites-available/${domain}.conf"
+
+  # Tạo cấu hình Nginx tạm cho challenge
+  sudo bash -c "cat > ${nginx_conf_file}" <<EOF
+server {
+    listen 80;
+    server_name ${domain};
+
+    location /.well-known/acme-challenge/ {
+        root ${webroot_path};
+        allow all;
+    }
+}
+EOF
+
+  sudo ln -sfn "${nginx_conf_file}" "/etc/nginx/sites-enabled/${domain}.conf"
+  sudo systemctl reload nginx
+
+  # Lấy SSL
+  if ! sudo certbot certonly --webroot -w "${webroot_path}" -d "${domain}" \
+        --agree-tos --email "${user_email}" --non-interactive --quiet \
+        --preferred-challenges http; then
+    echo -e "${RED}Lấy chứng chỉ SSL cho ${domain} thất bại.${NC}"
+    return 1
+  fi
+
+  # Cấu hình Full SSL
+  sudo bash -c "cat > ${nginx_conf_file}" <<EOF
+server {
+    listen 80;
+    server_name ${domain};
+
+    location /.well-known/acme-challenge/ {
+        root ${webroot_path};
+        allow all;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${domain};
+
+    ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3100;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+
+        proxy_buffering off;
+        proxy_cache off;
+    }
+}
+EOF
+
+  sudo systemctl reload nginx
+  stop_spinner
+}
+
+remove_n8n_library() {
+  check_root
+  echo -e "${YELLOW}Bạn có chắc chắn muốn gỡ bỏ N8N Library? (y/n)${NC}"
+  read -r confirm
+  if [[ "$confirm" != "y" ]]; then return 0; fi
+
+  start_spinner "Đang gỡ bỏ N8N Library..."
+  
+  local domain
+  domain=$(grep "^LIBRARY_DOMAIN_NAME=" "${ENV_FILE}" | cut -d'=' -f2)
+
+  # Cập nhật file .env
+  update_env_file "ENABLE_N8N_LIBRARY" "false"
+  
+  # Tạo lại file docker-compose.yml
+  create_docker_compose_config
+  
+  # Khởi chạy lại container (sẽ xóa n8n-library service)
+  cd "${N8N_DIR}" || return 1
+  sudo $DOCKER_COMPOSE_CMD up -d --remove-orphans
+  cd - > /dev/null
+
+  # Xóa Nginx config
+  if [[ -n "$domain" ]]; then
+    sudo rm -f "/etc/nginx/sites-available/${domain}.conf"
+    sudo rm -f "/etc/nginx/sites-enabled/${domain}.conf"
+    sudo systemctl reload nginx
+  fi
+
+  stop_spinner
+  echo -e "${GREEN}Đã gỡ bỏ N8N Library.${NC}"
+  read -p "Nhấn Enter để tiếp tục..."
+}
+
+view_library_logs() {
+  sudo docker logs -f "${N8N_LIBRARY_CONTAINER_NAME}"
+}
+
 # ---- src/main.sh ----
 uninstall() {
     echo -e "\n${YELLOW}[*] Đang kiểm tra và gỡ bỏ công cụ tại: ${INSTALL_PATH}${NC}"
@@ -3097,8 +3352,12 @@ show_menu() {
   printf " %-3s %-35s %-3s %s\n" "18)" "Xem Error Logs N8N (Terminal)" "19)" "Dọn rác máy chủ (Docker Prune)"
   printf " %-3s %-35s %-3s ${RED}%s${NC}\n" "20)" "System & Security Audit" "21)" "Cập nhật N8N Cloud Manager"
 
+  # Nhóm 5: Tiện ích mở rộng
+  echo -e "\n ${YELLOW}[ 5. TIỆN ÍCH MỞ RỘNG ]${NC}"
+  printf " %-3s %-35s\n" "22)" "Quản lý N8N Library (Thư viện mẫu & Dash)"
+
   # Nhóm Nguy hiểm
-  echo -e "\n ${RED}[ 5. KHU VỰC NGUY HIỂM ]${NC}"
+  echo -e "\n ${RED}[ 6. KHU VỰC NGUY HIỂM ]${NC}"
   printf " %-3s %-35s\n" "99)" "Xóa sạch Dữ liệu N8N và Cài đặt lại"
 
   echo "------------------------------------------------------------------------------------"
@@ -3130,6 +3389,7 @@ while true; do
     19) docker_prune ;;
     20) system_audit ;;
     21) update_script ;;
+    22) library_menu ;;
     99) reinstall_n8n ;;
     0)
         echo "Tạm Biệt nhé!  - NCHQ02 mãi iu Bạn!"
