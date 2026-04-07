@@ -118,14 +118,10 @@ reinstall_n8n() {
         elif [[ "$confirmation" != "delete" ]]; then
             echo -e "\n${RED}Xác nhận không hợp lệ. Huỷ bỏ thao tác.${NC}"
             echo -e "${YELLOW}Nhấn Enter để quay lại menu chính...${NC}"
-    healthcheck:
-      test: ["CMD", "/usr/bin/check-health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - n8n_network
-    logging:
+            read -r
+            return 0
+        fi
+    fi
 
     echo -e "\n${CYAN}Bắt đầu quá trình xóa N8N...${NC}"
     trap 'stop_spinner; echo -e "\n${RED}Đã xảy ra lỗi hoặc huỷ bỏ trong quá trình xóa N8N.${NC}"; if [[ "$NON_INTERACTIVE" != "true" ]]; then read -r -p "Nhấn Enter để quay lại menu..."; fi; return 0;' ERR SIGINT SIGTERM
