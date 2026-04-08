@@ -34,7 +34,7 @@ Công cụ cung cấp một menu điều khiển trực quan với các nhóm t�
 
 **1. Cài đặt & Cơ bản**
 
-- Cài đặt N8N mới (Hỗ trợ Nginx Standard hoặc Nginx Proxy Manager)
+- Cài đặt N8N mới (Quản lý tự động Nginx và SSL)
 - Thay đổi Tên miền truy cập
 - Nâng cấp phiên bản N8N
 - Cấu hình Môi trường (Timezone,...)
@@ -204,8 +204,8 @@ bash dist/n8n-host.sh --help
 | n8n        | `latest`                |
 | PostgreSQL | `15-alpine`             |
 | Redis      | `7-alpine`              |
-| Nginx      | Standard (apt) hoặc NPM (Docker) |
-| SSL        | Certbot hoặc NPM UI     |
+| Nginx      | Standard (apt)          |
+| SSL        | Certbot (Let's Encrypt) |
 
 ---
 

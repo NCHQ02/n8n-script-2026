@@ -76,39 +76,13 @@ setup_n8n_library() {
   sudo $DOCKER_COMPOSE_CMD up -d --remove-orphans
   cd - > /dev/null
   
-  # Cấu hình Nginx & SSL cho Library Domain (Chỉ cho Standard Nginx)
-  local proxy_type
-  proxy_type=$(grep "^PROXY_SETUP_TYPE=" "${ENV_FILE}" | cut -d'=' -f2)
+  # Cấu hình Nginx & SSL tự động
+  configure_library_nginx_ssl "$library_domain"
+  stop_spinner
+  echo -e "${GREEN}Cài đặt N8N Library hoàn tất!${NC}"
+  echo -e "Truy cập tại: ${GREEN}https://${library_domain}${NC}"
   
-  if [[ "$proxy_type" == "npm" ]]; then
-    stop_spinner
-    show_library_npm_reminder "$library_domain"
-  else
-    configure_library_nginx_ssl "$library_domain"
-    stop_spinner
-    echo -e "${GREEN}Cài đặt N8N Library hoàn tất!${NC}"
-    echo -e "Truy cập tại: ${GREEN}https://${library_domain}${NC}"
-  fi
   read -p "Nhấn Enter để tiếp tục..."
-}
-
-show_library_npm_reminder() {
-  local domain="$1"
-  local server_ip
-  server_ip=$(get_public_ip)
-  
-  echo -e "\n${YELLOW}---------------------------------------------------${NC}"
-  echo -e "${CYAN}    HƯỚNG DẪN CẤU HÌNH NGINX PROXY MANAGER (NPM)   ${NC}"
-  echo -e "${YELLOW}---------------------------------------------------${NC}"
-  echo -e "Bạn đang sử dụng NPM, vui lòng thêm Proxy Host thủ công:"
-  echo -e "1. Truy cập: ${GREEN}http://${server_ip}:81${NC}"
-  echo -e "2. Thêm Proxy Host mới:"
-  echo -e "   - Domains:       ${GREEN}${domain}${NC}"
-  echo -e "   - Scheme:        ${CYAN}http${NC}"
-  echo -e "   - Forward Host:  ${CYAN}${N8N_LIBRARY_CONTAINER_NAME}${NC}"
-  echo -e "   - Forward Port:  ${CYAN}3100${NC}"
-  echo -e "3. Tại tab SSL, chọn 'Request a new SSL Certificate'."
-  echo -e "${YELLOW}---------------------------------------------------${NC}"
 }
 
 configure_library_nginx_ssl() {

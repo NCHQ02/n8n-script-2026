@@ -7,14 +7,10 @@ install_prerequisites() {
   if [ $? -ne 0 ]; then return 1; fi
 
   if ! is_package_installed nginx; then
-    if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
-      echo -e "${YELLOW}Bỏ qua cài đặt Nginx (apt) vì bạn sử dụng Nginx Proxy Manager.${NC}"
-    else
-      run_silent_command "Cài đặt Nginx" "apt-get install -y nginx" "false"
-      if [ $? -ne 0 ]; then return 1; fi
-      sudo systemctl enable nginx >/dev/null 2>&1
-      sudo systemctl start nginx >/dev/null 2>&1
-    fi
+    run_silent_command "Cài đặt Nginx" "apt-get install -y nginx" "false"
+    if [ $? -ne 0 ]; then return 1; fi
+    sudo systemctl enable nginx >/dev/null 2>&1
+    sudo systemctl start nginx >/dev/null 2>&1
   fi
 
   if ! command_exists docker; then
@@ -46,12 +42,8 @@ install_prerequisites() {
   fi
 
   if ! command_exists certbot; then
-    if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
-      echo -e "${YELLOW}Bỏ qua cài đặt Certbot vì Nginx Proxy Manager sẽ tự quản lý SSL.${NC}"
-    else
-      run_silent_command "Cài đặt Certbot và plugin Nginx" "apt-get install -y certbot python3-certbot-nginx" "false"
-      if [ $? -ne 0 ]; then return 1; fi
-    fi
+    run_silent_command "Cài đặt Certbot và plugin Nginx" "apt-get install -y certbot python3-certbot-nginx" "false"
+    if [ $? -ne 0 ]; then return 1; fi
   fi
 
   if ! command_exists dig; then
@@ -192,17 +184,9 @@ get_domain_and_dns_check_reusable() {
 
 prompt_proxy_configuration() {
   local proxy_type="standard"
-  if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_PROXY_TYPE" ]]; then
-    proxy_type="$CLI_PROXY_TYPE"
-  elif [[ "$NON_INTERACTIVE" != "true" ]]; then
-    echo -e "\n${CYAN}--- Cấu hình Proxy (Nginx) ---${NC}"
-    echo -e "1) Standard Nginx (Nhẹ, quản lý qua CLI/Script - Khuyên dùng)"
-    echo -e "2) Nginx Proxy Manager (Có giao diện Web UI chuyên nghiệp trên cổng 81)"
-    local proxy_choice
-    read -p "Nhập lựa chọn của bạn (1-2) [Mặc định: 1]: " proxy_choice
-    if [[ "$proxy_choice" == "2" ]]; then
-      proxy_type="npm"
-    fi
+  if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    echo -e "\n${CYAN}--- Cấu hình Proxy & SSL ---${NC}"
+    echo -e "${GREEN}[+] Trình quản lý Nginx & SSL tự động được kích hoạt.${NC}"
   fi
 
   PROXY_SETUP_TYPE="$proxy_type"
@@ -341,33 +325,6 @@ create_docker_compose_config() {
   local n8n_depends_on=""
 
   local services_npm=""
-  if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
-services_npm="
-  npm:
-    image: 'jc21/nginx-proxy-manager:latest'
-    restart: always
-    container_name: n8n_npm
-    ports:
-      - '80:80'
-      - '81:81'
-      - '443:443'
-    volumes:
-      - ./npm_data:/data
-      - ./npm_letsencrypt:/etc/letsencrypt
-    healthcheck:
-      test: [\"CMD\", \"/usr/bin/check-health\"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - n8n_network
-    logging:
-      driver: \"json-file\"
-      options:
-        max-size: \"10m\"
-        max-file: \"3\"
-"
-  fi
   
   local services_library=""
   if [[ "$enable_n8n_library_val" == "true" ]]; then
@@ -376,6 +333,8 @@ services_library="
     build: ./n8n-library
     restart: always
     container_name: ${N8N_LIBRARY_CONTAINER_NAME}
+    ports:
+      - "127.0.0.1:3100:3100"
     environment:
       - DB_POSTGRESDB_HOST=\${POSTGRES_HOST:-${n8n_db_host}}
       - DB_POSTGRESDB_PORT=\${POSTGRES_PORT:-${n8n_db_port}}
@@ -541,13 +500,6 @@ start_docker_containers() {
 }
 
 configure_nginx_and_ssl() {
-  if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
-    stop_spinner
-    echo -e "${GREEN}Bỏ qua cấu hình Nginx/SSL cũ vì bạn sử dụng Nginx Proxy Manager.${NC}"
-    echo -e "${YELLOW}Sau khi cài đặt xong, hãy truy cập cổng 81 để cấu hình Proxy.${NC}"
-    return 0
-  fi
-
   start_spinner "Cấu hình Nginx và SSL với Certbot..."
   local domain_name
   local user_email
@@ -761,16 +713,7 @@ final_checks_and_message() {
     return 1
   fi
 
-  if [[ "$PROXY_SETUP_TYPE" == "npm" ]]; then
-    local server_ip
-    server_ip=$(get_public_ip)
-    echo -e "\n${CYAN}--- THÔNG TIN NGINX PROXY MANAGER ---${NC}"
-    echo -e "Địa chỉ quản trị: ${GREEN}http://${server_ip}:81${NC}"
-    echo -e "Tài khoản mặc định:"
-    echo -e "  Email:    ${YELLOW}admin@example.com${NC}"
-    echo -e "  Password: ${YELLOW}changeme${NC}"
-    echo -e "\n${YELLOW}Lưu ý: Trong NPM, khi trỏ vào n8n, hãy dùng hostname là '${NC}${CYAN}${N8N_CONTAINER_NAME}${NC}${YELLOW}' và cổng '${NC}${CYAN}5678${NC}${YELLOW}'.${NC}"
-  fi
+
 
   echo -e "${YELLOW}Quan trọng: Hãy lưu trữ file ${ENV_FILE} ở một nơi an toàn!${NC}"
   echo -e "Bạn nên tạo user đầu tiên cho n8n ngay sau khi truy cập."
