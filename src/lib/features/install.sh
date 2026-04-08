@@ -25,9 +25,9 @@ install() {
 
   trap 'RC=$?; stop_spinner; if [[ $RC -ne 0 && $RC -ne 130 ]]; then echo -e "\n${RED}Đã xảy ra lỗi trong quá trình cài đặt (Mã lỗi: $RC).${NC}"; fi; read -r -p "Nhấn Enter để quay lại menu..."; return 0;' ERR SIGINT SIGTERM
 
+  setup_directories_and_env_file
   prompt_proxy_configuration
   install_prerequisites
-  setup_directories_and_env_file
 
   local domain_name_for_install
   if [[ "$NON_INTERACTIVE" == "true" && -n "$CLI_DOMAIN" ]]; then
